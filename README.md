@@ -22,7 +22,7 @@ Follow link for the definitive RPi 7" Touchscreen instructions.
 * kivy - there's a specific RPi version
 * rpi_backlight - for managing brightness on the RPi's touchscreen
 * pyowm - open weather map support (you will need your own API Key)
-* xmltodict - xml parser for pulling apart BoM readings
+* untangle - xml parser for pulling apart BoM readings
 ---
 ### Usage:
 The rpi_backlight module requires the program to be run as sudo/root.

@@ -26,7 +26,7 @@ import requests
 import sys
 import time
 import threading
-import xmltodict
+import untangle
 from ftplib import FTP
 import StringIO
 
@@ -284,45 +284,45 @@ class BOMWeatherMonitor(WeatherMonitor):
 				 self.myConfig.get()["bom_weather"]["forecast_place"]
 		outStr = StringIO.StringIO()  # Use a string like a file.
 		ftp.retrlines('RETR ' + fcPath, outStr.write)
-		elements = xmltodict.parse(outStr.getvalue())
+		elements = untangle.parse(outStr.getvalue())
 		outStr.close()
-		area = elements["product"]["forecast"]["area"][2]
-		forecast = area["forecast-period"][0]
-		fcElements = forecast["element"]
+		area = elements.product.forecast.area[2]
+		forecast = area.forecast_period[0]
+		fcElements = forecast.element
 		# NOTE: sometimes this is a single dict, other times it's a list of dicts.
-		if "@type" in fcElements:
-			if fcElements["@type"] == "forecast_icon_code":
+		if "type" in fcElements:
+			if fcElements["type"] == "forecast_icon_code":
 				if self.args.verbose:
-					print("iconName: %s" % fcElements["#text"])
+					print("iconName: %s" % fcElements.cdata)
 				with self._weatherLock:
-					self._weather["iconName"] = fcElements["#text"]
-			elif fcElements["@type"] == "air_temperature_maximum":
+					self._weather["iconName"] = fcElements.cdata
+			elif fcElements["type"] == "air_temperature_maximum":
 				if self.args.verbose:
-					print("tempMax: %s" % fcElements["#text"])
+					print("tempMax: %s" % fcElements.cdata)
 				with self._weatherLock:
-					self._weather["tempMax"] = float(fcElements["#text"])
-			elif fcElements["@type"] == "air_temperature_minimum":
+					self._weather["tempMax"] = float(fcElements.cdata)
+			elif fcElements["type"] == "air_temperature_minimum":
 				if self.args.verbose:
-					print("tempMin: %s" % fcElements["#text"])
+					print("tempMin: %s" % fcElements.cdata)
 				with self._weatherLock:
-					self._weather["tempMin"] = float(fcElements["#text"])
+					self._weather["tempMin"] = float(fcElements.cdata)
 		else:
 			for thisElement in fcElements:
-				if thisElement["@type"] == "forecast_icon_code":
+				if thisElement["type"] == "forecast_icon_code":
 					if self.args.verbose:
-						print("iconName: %s" % thisElement["#text"])
+						print("iconName: %s" % thisElement.cdata)
 					with self._weatherLock:
-						self._weather["iconName"] = thisElement["#text"]
-				elif thisElement["@type"] == "air_temperature_maximum":
+						self._weather["iconName"] = str(thisElement.cdata)
+				elif thisElement["type"] == "air_temperature_maximum":
 					if self.args.verbose:
-						print("tempMax: %s" % thisElement["#text"])
+						print("tempMax: %s" % thisElement.data)
 					with self._weatherLock:
-						self._weather["tempMax"] = float(thisElement["#text"])
-				elif thisElement["@type"] == "air_temperature_minimum":
+						self._weather["tempMax"] = float(thisElement.cdata)
+				elif thisElement["type"] == "air_temperature_minimum":
 					if self.args.verbose:
-						print("tempMin: %s" % thisElement["#text"])
+						print("tempMin: %s" % thisElement.cdata)
 					with self._weatherLock:
-						self._weather["tempMin"] = float(thisElement["#text"])
+						self._weather["tempMin"] = float(thisElement.cdata)
 		return
 
 
@@ -427,9 +427,9 @@ class WeatherWidget(BoxLayout):
 # =============================================================================
 
 
-class MyClockWidget(Widget):
+class RPiClockWidget(Widget):
 	def __init__(self, myConfig, owmWeatherMonitor):
-		super(MyClockWidget, self).__init__()
+		super(RPiClockWidget, self).__init__()
 		timeWidget = TimeWidget(myConfig, size_hint=(1, .8))
 		timeWidget.size_hint_y = .7
 		dateWidget = DateWidget(myConfig)
@@ -450,9 +450,9 @@ class MyClockWidget(Widget):
 # =============================================================================
 
 
-class MrClockApp(App):
+class RPiClockApp(App):
 	def __init__(self, args, myConfig):
-		super(MrClockApp, self).__init__()
+		super(RPiClockApp, self).__init__()
 		if IsRPi():
 			bl.set_brightness(myConfig.get()["formats"]["brightness"])
 		self.myConfig = myConfig
@@ -473,7 +473,7 @@ class MrClockApp(App):
 		sys.exit()
 
 	def build(self):
-		clockWidget = MyClockWidget(self.myConfig, self.weatherMonitor)
+		clockWidget = RPiClockWidget(self.myConfig, self.weatherMonitor)
 		return clockWidget
 
 
@@ -485,7 +485,7 @@ def argParser():
 	parse arguments
 	:return: the parsed arguments
 	"""
-	parser = argparse.ArgumentParser(description='MrClock - time/date/weather display appliance.')
+	parser = argparse.ArgumentParser(description='rpiclock - time/date/weather display appliance.')
 	parser.add_argument("-v", "--verbose", help="verbose mode", action="store_true")
 	parser.add_argument("-d", "--diagnostic", help="diagnostic mode (includes verbose)", action="store_true")
 	parser.add_argument("--version", action="version", version='%(prog)s {version}'.format(version=__version__))
@@ -500,12 +500,12 @@ def argParser():
 def main():
 	args = argParser()
 	if args.verbose:
-		print("clock start")
+		print("rpiclock start")
 	config = Config(args)
-	clockApp = MrClockApp(args, config)
+	clockApp = RPiClockApp(args, config)
 	clockApp.run()
 	if args.verbose:
-		print("clock end")
+		print("rpiclock end")
 	return
 
 
