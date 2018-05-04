@@ -1,0 +1,14 @@
+[Unit]
+Description=MrClock
+After=network.target
+
+[Service]
+ExecStart=/usr/bin/python -u mrclock.py
+WorkingDirectory=/home/pi/project/mrclock
+StandardOutput=inherit
+StandardError=inherit
+Restart=always
+User=pi
+
+[Install]
+WantedBy=multi-user.target
