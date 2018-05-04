@@ -1,5 +1,5 @@
-# mrclock
-This repository contains the mrclock application designed to run on a Raspberry Pi 2/3 with the 7" touchscreen.
+# rpiclock
+This repository contains the rpiclock application designed to run on a Raspberry Pi 2/3 with the 7" touchscreen.
 
 It should run on a standard Linux desktop.
 
@@ -8,7 +8,7 @@ It should run on a standard Linux desktop.
 If you're reading this, chances are you already have some access to it.
 
 &nbsp;&nbsp;&nbsp;&nbsp;`cd ~/<project-dir>/`  
-&nbsp;&nbsp;&nbsp;&nbsp;`git clone --recursive https://<github-user>@github.com/delaneymorgan/mrclock.git`
+&nbsp;&nbsp;&nbsp;&nbsp;`git clone --recursive https://<github-user>@github.com/delaneymorgan/rpiclock.git`
 
 ---
 ### 7" Touchscreen Setup:
