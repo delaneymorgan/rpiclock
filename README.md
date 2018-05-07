@@ -17,6 +17,12 @@ Follow link for the definitive RPi 7" Touchscreen instructions.
 &nbsp;&nbsp;&nbsp;&nbsp;`https://www.element14.com/community/docs/DOC-78156/l/raspberry-pi-7-touchscreen-display`
 
 ---
+### 7 Segment Font:
+You can get an old-school 7-segment font for the time display from here:
+
+&nbsp;&nbsp;&nbsp;&nbsp;`https://www.keshikan.net/fonts-e.html`
+
+---
 ### Modules required:
 * configparser - .ini file parsing module
 * kivy - there's a specific RPi version
