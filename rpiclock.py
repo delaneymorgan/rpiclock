@@ -9,7 +9,6 @@ sys.argv = sys.argv[:1]
 import argparse
 import configparser
 from kivy.app import App
-from kivy.uix.behaviors import FocusBehavior
 from kivy.uix.image import Image as Image
 from kivy.uix.label import Label
 from kivy.uix.widget import Widget
@@ -32,7 +31,6 @@ import untangle
 from ftplib import FTP
 import StringIO
 
-
 # =============================================================================
 
 
@@ -47,8 +45,8 @@ kMembers_Formats = dict(blink_colon="bool", blink_rate="integer", brightness="in
                         small_font="string", small_font_size="integer", text_color='list', time='string',
                         weather='string', window_size='list')
 kMembers_Weather = dict(api='string', check_interval='integer')
-kMembers_BOMWeather = dict(observation_url='string', observation_place='string', ftp_host='string',
-                           ftp_port='integer', forecast_path='string', forecast_place='string')
+kMembers_BOMWeather = dict(forecast_path='string', forecast_place='string', ftp_host='string', ftp_port='integer',
+                           observation_url='string', observation_place='string')
 kMembers_OWMWeather = dict(api_key='string', place='string', temperature_scale='string')
 
 kBOMIcons = {
@@ -342,6 +340,7 @@ class TimeWidget(Label):
         self.color = myConfig.get()["formats"]["text_color"]
         self.bold = True
         self.lastTime = ""
+        Clock.schedule_interval(self.update, 1.0 / 2.0)  # 1/2 second resolution for 1 second accuracy
         self.update(0)
         return
 
@@ -369,13 +368,14 @@ class TimeWidget(Label):
 
 class DateWidget(Label):
     def __init__(self, myConfig):
-        super(DateWidget, self).__init__(text="00/00/0000")
+        super(DateWidget, self).__init__(text="")
         self.myConfig = myConfig
         if myConfig.get()["formats"]["small_font"]:
             self.font_name = myConfig.get()["formats"]["small_font"]
         self.font_size = myConfig.get()["formats"]["small_font_size"]
         self.color = myConfig.get()["formats"]["text_color"]
         self.lastDate = ""
+        Clock.schedule_interval(self.update, 1.0 / 2.0)
         self.update(0)
         return
 
@@ -399,26 +399,70 @@ class DateWidget(Label):
 # =============================================================================
 
 
-class WeatherWidget(BoxLayout):
+class WeatherIconWidget(Image):
     def __init__(self, myConfig, weatherMonitor):
-        super(WeatherWidget, self).__init__()
+        super(WeatherIconWidget, self).__init__()
         self.myConfig = myConfig
         self.weatherMonitor = weatherMonitor
-        self.tempNowLabel = Label()
-        self.tempNowLabel.color = myConfig.get()["formats"]["text_color"]
+        self.source = "blank.png"
+        Clock.schedule_interval(self.update, 5)  # fine for temperature
+        self.update(0)
+        return
+
+    def update(self, dt):
+        _ = dt
+        weather = self.weatherMonitor.weather()
+        if weather is not None:
+            iconPath = self.weatherMonitor.iconPath()
+            if iconPath is not None:
+                self.source = iconPath
+        return
+
+
+# =============================================================================
+
+
+class ForecastWidget(Label):
+    def __init__(self, myConfig, weatherMonitor):
+        super(ForecastWidget, self).__init__()
+        self.myConfig = myConfig
+        self.weatherMonitor = weatherMonitor
+        self.color = myConfig.get()["formats"]["text_color"]
         if myConfig.get()["formats"]["small_font"]:
             self.font_name = myConfig.get()["formats"]["small_font"]
-        self.tempNowLabel.font_size = self.myConfig.get()["formats"]["small_font_size"]
-        self.tempMinMaxLabel = Label()
-        self.tempMinMaxLabel.color = myConfig.get()["formats"]["text_color"]
+        self.font_size = self.myConfig.get()["formats"]["small_font_size"]
+        Clock.schedule_interval(self.update, 5)  # fine for temperature
+        self.update(0)
+        return
+
+    def update(self, dt):
+        _ = dt
+        weather = self.weatherMonitor.weather()
+        if weather is not None:
+            tempMin = weather['tempMin']
+            tempMax = weather['tempMax']
+            if tempMin is not None and tempMax is not None:
+                self.text = "%2.1f%s-%2.1f%s" % (tempMin, kDegreeSign, tempMax, kDegreeSign)
+            elif tempMin is None and tempMax is not None:
+                self.text = "Max: %2.1f%s" % (tempMax, kDegreeSign)
+            elif tempMin is not None and tempMax is None:
+                self.text = "Min: %2.1f%s" % (tempMin, kDegreeSign)
+        return
+
+
+# =============================================================================
+
+
+class TempNowWidget(Label):
+    def __init__(self, myConfig, weatherMonitor):
+        super(TempNowWidget, self).__init__()
+        self.myConfig = myConfig
+        self.weatherMonitor = weatherMonitor
+        self.color = myConfig.get()["formats"]["text_color"]
         if myConfig.get()["formats"]["small_font"]:
             self.font_name = myConfig.get()["formats"]["small_font"]
-        self.tempMinMaxLabel.font_size = self.myConfig.get()["formats"]["small_font_size"]
-        self.iconLabel = Image()
-        self.iconLabel.source = "blank.png"
-        self.add_widget(self.tempNowLabel)
-        self.add_widget(self.tempMinMaxLabel)
-        self.add_widget(self.iconLabel)
+        self.font_size = self.myConfig.get()["formats"]["small_font_size"]
+        Clock.schedule_interval(self.update, 5)  # fine for temperature
         self.update(0)
         return
 
@@ -427,42 +471,42 @@ class WeatherWidget(BoxLayout):
         weather = self.weatherMonitor.weather()
         if weather is not None:
             tempNow = weather['tempNow']
-            tempMin = weather['tempMin']
-            tempMax = weather['tempMax']
-            iconPath = self.weatherMonitor.iconPath()
             if tempNow is not None:
-                self.tempNowLabel.text = "%2.1f%s" % (tempNow, kDegreeSign)
-            if tempMin is not None and tempMax is not None:
-                self.tempMinMaxLabel.text = "%2.1f%s-%2.1f%s" % (tempMin, kDegreeSign, tempMax, kDegreeSign)
-            elif tempMin is None and tempMax is not None:
-                self.tempMinMaxLabel.text = "Max: %2.1f%s" % (tempMax, kDegreeSign)
-            elif tempMin is not None and tempMax is None:
-                self.tempMinMaxLabel.text = "Min: %2.1f%s" % (tempMin, kDegreeSign)
-            if iconPath is not None:
-                self.iconLabel.source = iconPath
+                self.text = "%2.1f%s" % (tempNow, kDegreeSign)
         return
 
 
 # =============================================================================
 
 
-class RPiClockWidget(FocusBehavior, Widget):
-    def __init__(self, myConfig, owmWeatherMonitor):
+class InfoWidget(BoxLayout):
+    def __init__(self, myConfig, weatherMonitor):
+        super(InfoWidget, self).__init__()
+        self.dateWidget = DateWidget(myConfig)
+        self.TempNowWidget = TempNowWidget(myConfig, weatherMonitor)
+        self.forecastWidget = ForecastWidget(myConfig, weatherMonitor)
+        self.iconWidget = WeatherIconWidget(myConfig, weatherMonitor)
+        self.add_widget(self.dateWidget)
+        self.add_widget(self.TempNowWidget)
+        self.add_widget(self.forecastWidget)
+        self.add_widget(self.iconWidget)
+        return
+
+
+# =============================================================================
+
+
+class RPiClockWidget(Widget):
+    def __init__(self, myConfig, weatherMonitor):
         super(RPiClockWidget, self).__init__()
         timeWidget = TimeWidget(myConfig, size_hint=(1, .8))
-        timeWidget.size_hint_y = .7
-        dateWidget = DateWidget(myConfig)
-        weatherWidget = WeatherWidget(myConfig, owmWeatherMonitor)
-        horizLayout = BoxLayout(size_hint=(1, .2))
+        timeWidget.size_hint_y = .8
+        infoWidget = InfoWidget(myConfig, weatherMonitor)
+        infoWidget.size_hint_y = .2
         vertLayout = BoxLayout(orientation='vertical', size=Window.size)
-        horizLayout.add_widget(dateWidget)
-        horizLayout.add_widget(weatherWidget)
         vertLayout.add_widget(timeWidget)
-        vertLayout.add_widget(horizLayout)
+        vertLayout.add_widget(infoWidget)
         self.add_widget(vertLayout)
-        Clock.schedule_interval(timeWidget.update, 1.0 / 2.0)  # 1/2 second resolution for 1 second accuracy
-        Clock.schedule_interval(dateWidget.update, 1.0 / 2.0)
-        Clock.schedule_interval(weatherWidget.update, 10)  # fine for temperature
         return
 
 
@@ -489,8 +533,8 @@ class RPiClockApp(App):
 
     def on_request_close(self, *args):
         self.weatherMonitor.stop()
-        #return False		# TODO: this should be enough to end things, but doesn't work
-        sys.exit()          # brute force will do it
+        # return False		# TODO: this should be enough to end things, but doesn't work
+        sys.exit()  # brute force will do it
 
     def build(self):
         clockWidget = RPiClockWidget(self.myConfig, self.weatherMonitor)
