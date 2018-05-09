@@ -28,11 +28,18 @@ Install any font by copying it to the RPi's font directory.
 
 Note that the blinking colon effect works best with a fixed-width font.  The 7-segment font works nicely.
 
+NOTE: Under Ubuntu 14, kivy doesn't find the custom font in the usual locations where the system installs them.  Try placing the font in the same folder as the rpiclock app.
+
 ---
 ### Auto-Start:
 A systemd service is provided for use with Raspbian.  Assuming you have installed rpiclock under /home/pi/project/rpiclock, this should run as is.  Modify as required.
 
 &nbsp;&nbsp;&nbsp;&nbsp;`sudo cp rpiclock.service /lib/systemd/system/`  
+
+---
+### Packages required:
+* cython - needed by kivy
+* freeglut3-dev - needed by kivy
 
 ---
 ### Modules required:
@@ -41,6 +48,7 @@ A systemd service is provided for use with Raspbian.  Assuming you have installe
 * rpi_backlight - for managing brightness on the RPi's touchscreen
 * pyowm - open weather map support (you will need your own API Key)
 * untangle - xml parser for pulling apart BoM readings
+* pygame - ??????
 
 &nbsp;&nbsp;&nbsp;&nbsp;`sudo pip install configparser`  
 &nbsp;&nbsp;&nbsp;&nbsp;`sudo pip install kivy`  
