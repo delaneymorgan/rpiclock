@@ -16,6 +16,16 @@ Follow link for the definitive RPi 7" Touchscreen instructions.
 
 &nbsp;&nbsp;&nbsp;&nbsp;`https://www.element14.com/community/docs/DOC-78156/l/raspberry-pi-7-touchscreen-display`
 
+If you've mounted the display in one of its many cases, you might find the display upside-down with respect to the case.  Fret not.  You'll need to modify /boot/config.txt.
+
+&nbsp;&nbsp;&nbsp;&nbsp;`sudo vim /boot/config.txt`  
+
+Add the following line:
+
+&nbsp;&nbsp;&nbsp;&nbsp;`lcd_rotate=2`  
+
+Save and reboot.
+
 ---
 ### 7 Segment Font:
 You can get an old-school 7-segment font for the time display from here:
