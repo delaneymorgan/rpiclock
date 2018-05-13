@@ -30,6 +30,7 @@ import threading
 import untangle
 from ftplib import FTP
 import StringIO
+import syslog
 
 # =============================================================================
 
@@ -145,9 +146,13 @@ class BrightnessMonitor(threading.Thread):
         return mod
 
     def setBacklight(self, rawValue):
+        rawValue = abs(int(rawValue)) % 256     # limit to integers 0-255
+        syslog.syslog("setBacklight-1: rawValue: %d" % rawValue)
         if platform.machine() == "armv7l":
             import rpi_backlight as bl
+            syslog.syslog("setBacklight-2")
             bl.set_brightness(rawValue)
+            syslog.syslog("setBacklight-3")
             Log(self.args, "set brightness: rawValue: %d" % rawValue)
         return
 
