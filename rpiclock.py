@@ -63,13 +63,6 @@ def IsRPi():
 # =============================================================================
 
 
-if IsRPi():
-    import rpi_backlight as bl
-
-
-# =============================================================================
-
-
 def Log(args, string):
     if args.verbose:
         print(string)
@@ -151,6 +144,13 @@ class BrightnessMonitor(threading.Thread):
         mod = (int(tod[0]) * 60) + int(tod[1])
         return mod
 
+    def setBacklight(self, rawValue):
+        if platform.machine() == "armv7l":
+            import rpi_backlight as bl
+            bl.set_brightness(rawValue)
+            Log(self.args, "set brightness: rawValue: %d" % rawValue)
+        return
+
     def stop(self):
         self.running = False
 
@@ -165,8 +165,7 @@ class BrightnessMonitor(threading.Thread):
             brightness = self.myConfig.get()["brightness"]["low"]
         Log(self.args, "Setting brightness: %3.1f%%" % brightness)
         realBrightness = (brightness / 100.0) * (self.kMaxBrightness - self.kMinBrightness) + self.kMinBrightness
-        if IsRPi():
-            bl.set_brightness(realBrightness)
+        self.setBacklight(realBrightness)
         return
 
     def run(self):
