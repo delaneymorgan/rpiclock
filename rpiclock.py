@@ -40,39 +40,15 @@ kConfigFilename = "config.ini"
 kOWMIconsDir = "owm_icons"
 kBOMIconsDir = "bom_icons"
 
-kMembers_Formats = dict(blink_colon="bool", blink_rate="integer", brightness="integer", date='string',
-                        date_dom_suffix='bool', display='string', large_font="string", large_font_size="integer",
-                        small_font="string", small_font_size="integer", text_color='list', time='string',
-                        weather='string', window_size='list')
+kMembers_Formats = dict(blink_colon="bool", blink_rate="integer", date='string', date_dom_suffix='bool',
+                        display='string', large_font="string", large_font_size="integer", small_font="string",
+                        small_font_size="integer", text_color='list', time='string', weather='string',
+                        window_size='list')
+kMembers_Brightness = dict(high='integer', high_tom_start='string', low='integer', low_tom_start='string')
 kMembers_Weather = dict(api='string', check_interval='integer')
 kMembers_BOMWeather = dict(forecast_path='string', forecast_place='string', ftp_host='string', ftp_port='integer',
                            observation_url='string', observation_place='string')
 kMembers_OWMWeather = dict(api_key='string', place='string', temperature_scale='string')
-
-kBOMIcons = {
-    '1': "sunny",
-    '2': "clear",
-    '3': "partly-cloudy",
-    '3n': "partly-cloudy-night",
-    '4': "cloudy",
-    '6': "haze",
-    '6n': "haze-night",
-    '8': "light-rain",
-    '9': "wind",
-    '10': "fog",
-    '10n': "fog-night",
-    '11': "showers",
-    '11n': "showers-night",
-    '12': "rain",
-    '13': "dust",
-    '14': "frost",
-    '15': "snow",
-    '16': "storm",
-    '17': "light-showers",
-    '17n': "light-showers-night",
-    '18': "heavy-showers",
-    '19': "tropicalcyclone"
-}
 
 
 # =============================================================================
@@ -89,6 +65,15 @@ def IsRPi():
 
 if IsRPi():
     import rpi_backlight as bl
+
+
+# =============================================================================
+
+
+def Log(args, string):
+    if args.verbose:
+        print(string)
+    return
 
 
 # =============================================================================
@@ -125,6 +110,7 @@ class Config():
         settings = configparser.ConfigParser(interpolation=configparser.ExtendedInterpolation())
         settings.read(kConfigFilename)
         self.config["formats"] = self.loadSection(settings, "formats", kMembers_Formats)
+        self.config["brightness"] = self.loadSection(settings, "brightness", kMembers_Brightness)
         self.config["weather"] = self.loadSection(settings, "weather", kMembers_Weather)
         self.config["bom_weather"] = self.loadSection(settings, "bom_weather", kMembers_BOMWeather)
         self.config["owm_weather"] = self.loadSection(settings, "owm_weather", kMembers_OWMWeather)
@@ -141,6 +127,49 @@ class Config():
 
     def get(self):
         return self.config
+
+
+# =============================================================================
+
+
+class BrightnessMonitor(threading.Thread):
+    def __init__(self, args, myConfig):
+        super(BrightnessMonitor, self).__init__()
+        self.args = args
+        self.myConfig = myConfig
+        highToDStart = self.myConfig.get()["brightness"]["high_tom_start"].split(":")
+        lowToDStart = self.myConfig.get()["brightness"]["low_tom_start"].split(":")
+        self.highMoDStart = (int(highToDStart[0]) * 60) + int(highToDStart[1])
+        self.lowMoDStart = (int(lowToDStart[0]) * 60) + int(lowToDStart[1])
+        self.running = True
+        return
+
+    def stop(self):
+        self.running = False
+
+    def checkBrightness(self):
+        timeNow = time.time()
+        localTime = time.localtime(timeNow)
+        minOfDay = (60 * localTime.tm_hour) + localTime.tm_min
+        if self.highMoDStart < self.lowMoDStart  and minOfDay > self.highMoDStart and minOfDay < self.lowMoDStart:
+            # high brightness
+            highBrightness = self.myConfig.get()["brightness"]["high"]
+            Log(self.args, "Setting brightness: %d" % highBrightness)
+            if IsRPi():
+                bl.set_brightness(highBrightness)
+        else:
+            # low brightness
+            lowBrightness = self.myConfig.get()["brightness"]["low"]
+            Log(self.args, "Setting brightness: %d" % lowBrightness)
+            if IsRPi():
+                bl.set_brightness(lowBrightness)
+        return
+
+    def run(self):
+        while self.running:
+            self.checkBrightness()
+            time.sleep(1)  # I'd sleep for more, but it holds up quit
+        return
 
 
 # =============================================================================
@@ -184,14 +213,12 @@ class WeatherMonitor(threading.Thread):
             timeNow = time.time()
             waitRemaining = self.myConfig.get()["weather"]["check_interval"] - (timeNow - self.lastCheck)
             if waitRemaining < 0:
-                if self.args.verbose:
-                    print("polling weather")
+                Log(self.args, "polling weather")
                 self.lastCheck = timeNow
                 self.doObservation()
                 self.doForecast()
             else:
-                if self.args.verbose:
-                    print("secs until next weather poll: %0.1f secs" % waitRemaining)
+                Log(self.args, "secs until next weather poll: %0.1f secs" % waitRemaining)
                 time.sleep(1)  # I'd sleep for more, but it holds up quit
         return
 
@@ -207,8 +234,7 @@ class OWMWeatherMonitor(WeatherMonitor):
         return
 
     def doObservation(self):
-        if self.args.verbose:
-            print("retrieving observation")
+        Log(self.args, "retrieving observation")
         obs = self.service.weather_at_place(self.myConfig.get()["owm_weather"]["place"])
         scale = self.myConfig.get()["owm_weather"]["temperature_scale"]
         obsWeather = obs.get_weather()
@@ -226,8 +252,7 @@ class OWMWeatherMonitor(WeatherMonitor):
             return imagePath
 
     def doForecast(self):
-        if self.args.verbose:
-            print("retrieving forecast")
+        Log(self.args, "retrieving forecast")
         with self._weatherLock:
             pass
         return
@@ -237,14 +262,38 @@ class OWMWeatherMonitor(WeatherMonitor):
 
 
 class BOMWeatherMonitor(WeatherMonitor):
+    kBOMIcons = {
+        '1': "sunny",
+        '2': "clear",
+        '3': "partly-cloudy",
+        '3n': "partly-cloudy-night",
+        '4': "cloudy",
+        '6': "haze",
+        '6n': "haze-night",
+        '8': "light-rain",
+        '9': "wind",
+        '10': "fog",
+        '10n': "fog-night",
+        '11': "showers",
+        '11n': "showers-night",
+        '12': "rain",
+        '13': "dust",
+        '14': "frost",
+        '15': "snow",
+        '16': "storm",
+        '17': "light-showers",
+        '17n': "light-showers-night",
+        '18': "heavy-showers",
+        '19': "tropicalcyclone"
+    }
+
     def __init__(self, args, myConfig):
         super(BOMWeatherMonitor, self).__init__(args, myConfig)
         self.doObservation()
         return
 
     def doObservation(self):
-        if self.args.verbose:
-            print("retrieving observation")
+        Log(self.args, "retrieving observation")
         url = self.myConfig.get()["bom_weather"]["observation_url"]
         place = self.myConfig.get()["bom_weather"]["observation_place"]
         observation_url = url % (place, place)
@@ -252,24 +301,22 @@ class BOMWeatherMonitor(WeatherMonitor):
         if resp:
             # observations typically contains many (hundreds, perhaps),
             # lets just print out the current observation.
-            if self.args.verbose:
-                print("Current observation data:")
+            Log(self.args, "Current observation data:")
             content = resp.content
             content = json.loads(content)
             observation = content["observations"]["data"][0]
-            if self.args.verbose:
-                print("tempNow: %s" % observation["air_temp"])
+            Log(self.args, "tempNow: %s" % observation["air_temp"])
             with self._weatherLock:
                 self._weather["tempNow"] = observation["air_temp"]
-        elif self.args.verbose:
-            print("No observations retrieved")
+        else:
+            Log(self.args, "No observations retrieved")
         return
 
     def iconPath(self):
         imagePath = None
         with self._weatherLock:
             if self._weather["iconName"] is not None:
-                iconName = kBOMIcons[self._weather["iconName"]]
+                iconName = self.kBOMIcons[self._weather["iconName"]]
                 imagePath = os.path.join(kBOMIconsDir, iconName + ".png")
         return imagePath
 
@@ -277,8 +324,7 @@ class BOMWeatherMonitor(WeatherMonitor):
         return
 
     def doForecast(self):
-        if self.args.verbose:
-            print("retrieving forecast")
+        Log(self.args, "retrieving forecast")
         ftp = FTP(self.myConfig.get()["bom_weather"]["ftp_host"])
         ftp.login()
         fcPath = self.myConfig.get()["bom_weather"]["forecast_path"] % \
@@ -293,35 +339,29 @@ class BOMWeatherMonitor(WeatherMonitor):
         # NOTE: sometimes this is a single dict, other times it's a list of dicts.
         if "type" in fcElements:
             if fcElements["type"] == "forecast_icon_code":
-                if self.args.verbose:
-                    print("iconName: %s" % fcElements.cdata)
+                Log(self.args, "iconName: %s" % fcElements.cdata)
                 with self._weatherLock:
                     self._weather["iconName"] = fcElements.cdata
             elif fcElements["type"] == "air_temperature_maximum":
-                if self.args.verbose:
-                    print("tempMax: %s" % fcElements.cdata)
+                Log(self.args, "tempMax: %s" % fcElements.cdata)
                 with self._weatherLock:
                     self._weather["tempMax"] = float(fcElements.cdata)
             elif fcElements["type"] == "air_temperature_minimum":
-                if self.args.verbose:
-                    print("tempMin: %s" % fcElements.cdata)
+                Log(self.args, "tempMin: %s" % fcElements.cdata)
                 with self._weatherLock:
                     self._weather["tempMin"] = float(fcElements.cdata)
         else:
             for thisElement in fcElements:
                 if thisElement["type"] == "forecast_icon_code":
-                    if self.args.verbose:
-                        print("iconName: %s" % thisElement.cdata)
+                    Log(self.args, "iconName: %s" % thisElement.cdata)
                     with self._weatherLock:
                         self._weather["iconName"] = str(thisElement.cdata)
                 elif thisElement["type"] == "air_temperature_maximum":
-                    if self.args.verbose:
-                        print("tempMax: %s" % thisElement.data)
+                    Log(self.args, "tempMax: %s" % thisElement.cdata)
                     with self._weatherLock:
                         self._weather["tempMax"] = float(thisElement.cdata)
                 elif thisElement["type"] == "air_temperature_minimum":
-                    if self.args.verbose:
-                        print("tempMin: %s" % thisElement.cdata)
+                    Log(self.args, "tempMin: %s" % thisElement.cdata)
                     with self._weatherLock:
                         self._weather["tempMin"] = float(thisElement.cdata)
         return
@@ -516,8 +556,6 @@ class RPiClockWidget(Widget):
 class RPiClockApp(App):
     def __init__(self, args, myConfig):
         super(RPiClockApp, self).__init__()
-        if IsRPi():
-            bl.set_brightness(myConfig.get()["formats"]["brightness"])
         self.myConfig = myConfig
         Window.size = myConfig.get()["formats"]["window_size"]
         Window.bind(on_request_close=self.on_request_close)
@@ -529,10 +567,13 @@ class RPiClockApp(App):
         elif myConfig.get()["weather"]["api"] == "bom":
             self.weatherMonitor = BOMWeatherMonitor(args, myConfig)
             self.weatherMonitor.start()
+        self.brightnesssMonitor = BrightnessMonitor(args, myConfig)
+        self.brightnesssMonitor.start()
         return
 
     def on_request_close(self, *args):
         self.weatherMonitor.stop()
+        self.brightnesssMonitor.stop()
         # return False		# TODO: this should be enough to end things, but doesn't work
         sys.exit()  # brute force will do it
 
@@ -562,13 +603,11 @@ def argParser():
 
 def main():
     args = argParser()
-    if args.verbose:
-        print("rpiclock start")
+    Log(args, "rpiclock start")
     config = Config(args)
     clockApp = RPiClockApp(args, config)
     clockApp.run()
-    if args.verbose:
-        print("rpiclock end")
+    Log(args, "rpiclock end")
     return
 
 
