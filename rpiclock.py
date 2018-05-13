@@ -44,7 +44,7 @@ kMembers_Formats = dict(blink_colon="bool", blink_rate="integer", date='string',
                         display='string', large_font="string", large_font_size="integer", small_font="string",
                         small_font_size="integer", text_color='list', time='string', weather='string',
                         window_size='list')
-kMembers_Brightness = dict(high='integer', high_tom_start='string', low='integer', low_tom_start='string')
+kMembers_Brightness = dict(high='float', high_tom_start='string', low='float', low_tom_start='string')
 kMembers_Weather = dict(api='string', check_interval='integer')
 kMembers_BOMWeather = dict(forecast_path='string', forecast_place='string', ftp_host='string', ftp_port='integer',
                            observation_url='string', observation_place='string')
@@ -132,37 +132,41 @@ class Config():
 # =============================================================================
 
 
+# noinspection PyTypeChecker
 class BrightnessMonitor(threading.Thread):
+    kMaxBrightness = 255
+    kMinBrightness = 0
+
     def __init__(self, args, myConfig):
         super(BrightnessMonitor, self).__init__()
         self.args = args
         self.myConfig = myConfig
-        highToDStart = self.myConfig.get()["brightness"]["high_tom_start"].split(":")
-        lowToDStart = self.myConfig.get()["brightness"]["low_tom_start"].split(":")
-        self.highMoDStart = (int(highToDStart[0]) * 60) + int(highToDStart[1])
-        self.lowMoDStart = (int(lowToDStart[0]) * 60) + int(lowToDStart[1])
+        self.highMoDStart = self.ToDToMoD(self.myConfig.get()["brightness"]["high_tom_start"])
+        self.lowMoDStart = self.ToDToMoD(self.myConfig.get()["brightness"]["low_tom_start"])
         self.running = True
         return
+
+    def ToDToMoD(self, tod):
+        tod = tod.split(":")
+        mod = (int(tod[0]) * 60) + int(tod[1])
+        return mod
 
     def stop(self):
         self.running = False
 
     def checkBrightness(self):
+        # TODO: maybe use weather observation to base dimming on sunrise/sunset
         timeNow = time.time()
         localTime = time.localtime(timeNow)
         minOfDay = (60 * localTime.tm_hour) + localTime.tm_min
         if self.highMoDStart < self.lowMoDStart  and minOfDay > self.highMoDStart and minOfDay < self.lowMoDStart:
-            # high brightness
-            highBrightness = self.myConfig.get()["brightness"]["high"]
-            Log(self.args, "Setting brightness: %d" % highBrightness)
-            if IsRPi():
-                bl.set_brightness(highBrightness)
+            brightness = self.myConfig.get()["brightness"]["high"]
         else:
-            # low brightness
-            lowBrightness = self.myConfig.get()["brightness"]["low"]
-            Log(self.args, "Setting brightness: %d" % lowBrightness)
-            if IsRPi():
-                bl.set_brightness(lowBrightness)
+            brightness = self.myConfig.get()["brightness"]["low"]
+        Log(self.args, "Setting brightness: %3.1f%%" % brightness)
+        realBrightness = (brightness / 100.0) * (self.kMaxBrightness - self.kMinBrightness) + self.kMinBrightness
+        if IsRPi():
+            bl.set_brightness(realBrightness)
         return
 
     def run(self):
@@ -175,6 +179,7 @@ class BrightnessMonitor(threading.Thread):
 # =============================================================================
 
 
+# noinspection PyTypeChecker
 class WeatherMonitor(threading.Thread):
     def __init__(self, args, myConfig):
         super(WeatherMonitor, self).__init__()
@@ -226,6 +231,7 @@ class WeatherMonitor(threading.Thread):
 # =============================================================================
 
 
+# noinspection PyTypeChecker
 class OWMWeatherMonitor(WeatherMonitor):
     def __init__(self, args, myConfig):
         super(OWMWeatherMonitor, self).__init__(args, myConfig)
@@ -261,6 +267,7 @@ class OWMWeatherMonitor(WeatherMonitor):
 # =============================================================================
 
 
+# noinspection PyTypeChecker
 class BOMWeatherMonitor(WeatherMonitor):
     kBOMIcons = {
         '1': "sunny",
