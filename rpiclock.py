@@ -30,7 +30,6 @@ import threading
 import untangle
 from ftplib import FTP
 import StringIO
-import syslog
 
 # =============================================================================
 
@@ -64,31 +63,31 @@ def IsRPi():
 # =============================================================================
 
 
-def Log(args, string):
+def Log(args, qString):
     if args.verbose:
-        print(string)
+        print(qString)
     return
 
 
 # =============================================================================
 
 
-def SuffixNum(n):
+def SuffixNum(num):
     """
     Some major juju by python god xsot
 
-    :param n: the number to be suffixed
+    :param num: the number to be suffixed
     :return: the suffixed number
     """
-    func = lambda n: `n` + 'tsnrhtdd'[n % 5 * (n % 100 ^ 15 > 4 > n % 10)::4]
-    suffixedNum = func(n)
+    def func(n): return repr(n) + 'tsnrhtdd'[n % 5 * (n % 100 ^ 15 > 4 > n % 10)::4]
+    suffixedNum = func(num)
     return suffixedNum
 
 
 # =============================================================================
 
 
-class Config():
+class Config:
     config = {}
 
     configTypeParsers = {
@@ -99,7 +98,7 @@ class Config():
         'float': lambda self, settings, section, member: settings.getfloat(section, member),
     }
 
-    def __init__(self, args, filename="config.ini"):
+    def __init__(self, filename="config.ini"):
         self.filename = filename
         settings = configparser.ConfigParser(interpolation=configparser.ExtendedInterpolation())
         settings.read(kConfigFilename)
@@ -146,13 +145,10 @@ class BrightnessMonitor(threading.Thread):
         return mod
 
     def setBacklight(self, rawValue):
-        rawValue = abs(int(rawValue)) % 256     # limit to integers 0-255
-        syslog.syslog("setBacklight-1: rawValue: %d" % rawValue)
+        rawValue = abs(int(rawValue)) % 256  # limit to integers 0-255
         if platform.machine() == "armv7l":
             import rpi_backlight as bl
-            syslog.syslog("setBacklight-2")
             bl.set_brightness(rawValue)
-            syslog.syslog("setBacklight-3")
             Log(self.args, "set brightness: rawValue: %d" % rawValue)
         return
 
@@ -164,7 +160,7 @@ class BrightnessMonitor(threading.Thread):
         timeNow = time.time()
         localTime = time.localtime(timeNow)
         minOfDay = (60 * localTime.tm_hour) + localTime.tm_min
-        if self.highMoDStart < self.lowMoDStart  and minOfDay > self.highMoDStart and minOfDay < self.lowMoDStart:
+        if self.highMoDStart < self.lowMoDStart and self.highMoDStart < minOfDay < self.lowMoDStart:
             brightness = self.myConfig.get()["brightness"]["high"]
         else:
             brightness = self.myConfig.get()["brightness"]["low"]
@@ -434,13 +430,13 @@ class DateWidget(Label):
         _ = dt
         timeNow = time.time()
         localTime = time.localtime(timeNow)
-        format = self.myConfig.get()["formats"]["date"]
+        fmt = self.myConfig.get()["formats"]["date"]
         if self.myConfig.get()["formats"]["date_dom_suffix"]:
             monthStr = time.strftime("%B", localTime)
             domSuffixed = SuffixNum(localTime.tm_mday)
             dateStr = "%s %s" % (domSuffixed, monthStr)
         else:
-            dateStr = time.strftime(format, localTime)
+            dateStr = time.strftime(fmt, localTime)
         if dateStr != self.lastDate:
             self.lastDate = dateStr
             self.text = dateStr
@@ -583,6 +579,7 @@ class RPiClockApp(App):
         return
 
     def on_request_close(self, *args):
+        _ = args
         self.weatherMonitor.stop()
         self.brightnesssMonitor.stop()
         # return False		# TODO: this should be enough to end things, but doesn't work
@@ -615,7 +612,7 @@ def argParser():
 def main():
     args = argParser()
     Log(args, "rpiclock start")
-    config = Config(args)
+    config = Config()
     clockApp = RPiClockApp(args, config)
     clockApp.run()
     Log(args, "rpiclock end")
