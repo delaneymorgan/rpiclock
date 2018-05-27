@@ -208,7 +208,7 @@ class WeatherMonitor(threading.Thread):
             tempMin=None,   # forecast minimum temperature in Celcius
             tempMax=None,   # forecast maximum temperature in Celcius
             iconName=None,  # current weather icon
-            forecast=[None, None, None, None, None]     # the five-day forecast
+            forecast=[]     # the five-day forecast
         )
         return
 
@@ -365,6 +365,7 @@ class BOMWeatherMonitor(WeatherMonitor):
         info = {}
         # NOTE: sometimes this is a single dict, other times it's a list of dicts.
         if "type" in forecastElements:
+            # it's a single dict
             if forecastElements["type"] == "forecast_icon_code":
                 Log(self.args, "iconName: %s" % forecastElements.cdata)
                 info["iconName"] = forecastElements.cdata
@@ -375,16 +376,17 @@ class BOMWeatherMonitor(WeatherMonitor):
                 Log(self.args, "tempMin: %s" % forecastElements.cdata)
                 info["tempMin"] = float(forecastElements.cdata)
         else:
+            # it's an array of dicts
             for thisElement in forecastElements:
                 if thisElement["type"] == "forecast_icon_code":
                     Log(self.args, "iconName: %s" % thisElement.cdata)
                     info["iconName"] = str(thisElement.cdata)
                 elif thisElement["type"] == "air_temperature_maximum":
                     Log(self.args, "tempMax: %s" % thisElement.cdata)
-                    self._weather["tempMax"] = float(thisElement.cdata)
+                    info["tempMax"] = float(thisElement.cdata)
                 elif thisElement["type"] == "air_temperature_minimum":
                     Log(self.args, "tempMin: %s" % thisElement.cdata)
-                    self._weather["tempMin"] = float(thisElement.cdata)
+                    info["tempMin"] = float(thisElement.cdata)
         return info
 
     def doForecast(self):
@@ -405,10 +407,14 @@ class BOMWeatherMonitor(WeatherMonitor):
             with self._weatherLock:
                 for thisKey in info:
                     self._weather[thisKey] = info[thisKey]
-            # TODO: fill forecast with junk for testing
+            periodsForecast = area.forecast_period
             with self._weatherLock:
-                for dayNo in range(0, 5):
-                    self._weather["forecast"][dayNo] = dict(temp=22.1, iconName="19")
+                self._weather["forecast"] = []
+            for dayForecast in periodsForecast:
+                dayElements = dayForecast.element
+                info = self.decodeElements(dayElements)
+                with self._weatherLock:
+                    self._weather["forecast"].append(info)
         except Exception as e:
             print("BOMWeatherMonitor.doForecast() Error: %s/%s" % (type(e), str(e)))
         return
@@ -579,16 +585,19 @@ class OneDayForecastWidget(BoxLayout):
         return
 
     def showInfo(self):
-        # TODO: get forecast for this day from weathermonitor - use current day for now
-        forecast = self.weatherMonitor.weather()["forecast"][self.dayNo]
-        if forecast is not None:
-            temp = forecast['temp']
-            if temp is not None:
+        try:
+            forecasts = self.weatherMonitor.weather()["forecast"]
+            forecast = forecasts[self.dayNo]
+            if "tempMax" in forecast:
+                temp = forecast['tempMax']
                 self.tempWidget.text = "%2.1f%s" % (temp, kDegreeSign)
-            iconPath = self.weatherMonitor.iconPath(forecast["iconName"])
-            (forecast["iconName"])
-            if iconPath is not None:
-                self.iconWidget.source = iconPath
+            if "iconName" in forecast:
+                iconPath = self.weatherMonitor.iconPath(forecast["iconName"])
+                if iconPath is not None:
+                    self.iconWidget.source = iconPath
+        except IndexError:
+            # there is no forecast for this day
+            pass
         return
 
 
