@@ -213,8 +213,12 @@ class WeatherMonitor(threading.Thread):
         return
 
     def weather(self):
+        """
+        returns a copy of the weather structure
+        :return: weather copy
+        """
         with self._weatherLock:
-            return self._weather
+            return dict(self._weather)
 
     def iconPath(self):
         raise NotImplementedError()
