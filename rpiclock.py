@@ -19,6 +19,7 @@ from kivy.core.window import Window
 
 sys.argv = argvCopy
 
+import calendar
 import json
 import os
 import platform
@@ -50,6 +51,7 @@ kMembers_Weather = dict(api='string', check_interval='integer')
 kMembers_BOMWeather = dict(forecast_path='string', forecast_place='string', ftp_host='string', ftp_port='integer',
                            observation_url='string', observation_place='string')
 kMembers_OWMWeather = dict(api_key='string', place='string', temperature_scale='string')
+kBlankImage = "blank.png"
 
 gRunning = True
 
@@ -174,7 +176,7 @@ class BrightnessMonitor(threading.Thread):
         if self.highMoDStart < self.lowMoDStart and self.highMoDStart < minOfDay < self.lowMoDStart:
             brightness = self.myConfig.get()["brightness"]["high"]
         else:
-            brightness = self.myConfig.get()["brightness"]["low"]
+            brightness =3D self.myConfig.get()["brightness"]["low"]
         Log(self.args, "Setting brightness: %3.1f%%" % brightness)
         # convert brightness % to raw brightness setting
         realBrightness = (brightness / 100.0) * (self.kMaxBrightness - self.kMinBrightness) + self.kMinBrightness
@@ -365,7 +367,7 @@ class BOMWeatherMonitor(WeatherMonitor):
     def addLines(self, lines):
         return
 
-    def decodeElements(self, forecastElements):
+    def decodeElements(self, forecastElements, timestamp=None):
         info = {}
         # NOTE: sometimes this is a single dict, other times it's a list of dicts.
         if "type" in forecastElements:
@@ -391,6 +393,10 @@ class BOMWeatherMonitor(WeatherMonitor):
                 elif thisElement["type"] == "air_temperature_minimum":
                     Log(self.args, "tempMin: %s" % thisElement.cdata)
                     info["tempMin"] = float(thisElement.cdata)
+        if timestamp:
+            timeTuple = time.strptime(timestamp, "%Y-%m-%dT%H:%M:%S+10:00")
+            thisTime = time.mktime(timeTuple)
+            info["timestamp"] = thisTime
         return info
 
     def doForecast(self):
@@ -416,7 +422,7 @@ class BOMWeatherMonitor(WeatherMonitor):
                 self._weather["forecast"] = []
             for dayForecast in periodsForecast:
                 dayElements = dayForecast.element
-                info = self.decodeElements(dayElements)
+                info = self.decodeElements(dayElements, dayForecast["start-time-local"])
                 with self._weatherLock:
                     self._weather["forecast"].append(info)
         except Exception as e:
@@ -516,7 +522,7 @@ class WeatherIconWidget(Image):
         super(WeatherIconWidget, self).__init__()
         self.myConfig = myConfig
         self.weatherMonitor = weatherMonitor
-        self.source = "blank.png"
+        self.source = kBlankImage
         Clock.schedule_interval(self.update, 5)  # fine for temperature
         self.update(0)
         return
@@ -571,13 +577,19 @@ class OneDayForecastWidget(BoxLayout):
         self.myConfig = myConfig
         self.weatherMonitor = weatherMonitor
         self.dayNo = dayNo
+        self.dowWidget = Label()
+        self.dowWidget.color = myConfig.get()["formats"]["text_color"]
+        if myConfig.get()["formats"]["small_font"]:
+            self.dowWidget.font_name = myConfig.get()["formats"]["small_font"]
+        self.dowWidget.font_size = self.myConfig.get()["formats"]["small_font_size"]
         self.tempWidget = Label()
         self.tempWidget.color = myConfig.get()["formats"]["text_color"]
         if myConfig.get()["formats"]["small_font"]:
             self.tempWidget.font_name = myConfig.get()["formats"]["small_font"]
         self.tempWidget.font_size = self.myConfig.get()["formats"]["small_font_size"]
         self.iconWidget = Image()
-        self.iconWidget.source = "blank.png"
+        self.iconWidget.source = kBlankImage
+        self.add_widget(self.dowWidget)
         self.add_widget(self.iconWidget)
         self.add_widget(self.tempWidget)
         Clock.schedule_interval(self.update, 5)  # fine for temperature
@@ -592,13 +604,23 @@ class OneDayForecastWidget(BoxLayout):
         try:
             forecasts = self.weatherMonitor.weather()["forecast"]
             forecast = forecasts[self.dayNo]
-            if "tempMax" in forecast:
-                temp = forecast['tempMax']
-                self.tempWidget.text = "%2.1f%s" % (temp, kDegreeSign)
-            if "iconName" in forecast:
-                iconPath = self.weatherMonitor.iconPath(forecast["iconName"])
-                if iconPath is not None:
-                    self.iconWidget.source = iconPath
+            if any(forecast):
+                if "timestamp" in forecast:
+                    timeNow = time.localtime(forecast['timestamp'])
+                    dowName = calendar.day_abbr[timeNow.tm_wday]
+                    self.dowWidget.text = dowName
+                if "tempMax" in forecast:
+                    temp = forecast['tempMax']
+                    self.tempWidget.text = "%2.1f%s" % (temp, kDegreeSign)
+                if "iconName" in forecast:
+                    iconPath = self.weatherMonitor.iconPath(forecast["iconName"])
+                    if iconPath is not None:
+                        self.iconWidget.source = iconPath
+            else:
+                # otherwise wipe any lingering info
+                self.dowWidget.text = ""
+                self.iconWidget.source = kBlankImage
+                self.tempWidget.text = ""
         except IndexError:
             # there is no forecast for this day
             pass
