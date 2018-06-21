@@ -26,6 +26,23 @@ Add the following line:
 
 Save and reboot.
 
+Next you need to configure kivy to recognise touch events:
+
+In ~/.kivy, edit config.ini and look for the input section.  Change it to:
+
+&nbsp;&nbsp;&nbsp;&nbsp;`mouse = mouse`  
+&nbsp;&nbsp;&nbsp;&nbsp;`mtdev_%(name)s = probesysfs,provider=mtdev`  
+&nbsp;&nbsp;&nbsp;&nbsp;`hid_%(name)s = probesysfs,provider=hidinput`  
+
+See:
+
+&nbsp;&nbsp;&nbsp;&nbsp;`https://kivy.org/docs/installation/installation-rpi.html`
+
+However, this only works for the current user.  If you run rpiclock as root, which you will if you auto-start or use the brightness control, you'll need to copy the working config to the root user's directory:
+
+&nbsp;&nbsp;&nbsp;&nbsp;`cp -r ~/.kivy /root`  
+
+
 ---
 ### 7 Segment Font:
 You can get an old-school 7-segment font for the time display from here:
@@ -44,7 +61,8 @@ NOTE: Under Ubuntu 14, kivy doesn't find the custom font in the usual locations 
 ### Auto-Start:
 A systemd service is provided for use with Raspbian.  Assuming you have installed rpiclock under /home/pi/project/rpiclock, this should run as is.  Modify as required.
 
-&nbsp;&nbsp;&nbsp;&nbsp;`sudo cp rpiclock.service /lib/systemd/system/`  
+&nbsp;&nbsp;&nbsp;&nbsp;`cd /lib/systemd/system/`  
+&nbsp;&nbsp;&nbsp;&nbsp;`sudo ln -s ~/project/rpiclock/rpiclock.service rpiclock.service`  
 
 ---
 ### Packages required:
