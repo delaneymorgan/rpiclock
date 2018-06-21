@@ -176,7 +176,7 @@ class BrightnessMonitor(threading.Thread):
         if self.highMoDStart < self.lowMoDStart and self.highMoDStart < minOfDay < self.lowMoDStart:
             brightness = self.myConfig.get()["brightness"]["high"]
         else:
-            brightness =3D self.myConfig.get()["brightness"]["low"]
+            brightness = self.myConfig.get()["brightness"]["low"]
         Log(self.args, "Setting brightness: %3.1f%%" % brightness)
         # convert brightness % to raw brightness setting
         realBrightness = (brightness / 100.0) * (self.kMaxBrightness - self.kMinBrightness) + self.kMinBrightness
