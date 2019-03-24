@@ -38,21 +38,21 @@ import StringIO
 
 
 __version__ = "0.0.1"
-kDegreeSign = u"\u00b0"
-kConfigFilename = "config.ini"
-kOWMIconsDir = "owm_icons"
-kBOMIconsDir = "bom_icons"
+DEGREE_SIGN = u"\u00b0"
+CONFIG_FILENAME = "config.ini"
+OWM_ICONS_DIR = "owm_icons"
+BOM_ICONS_DIR = "bom_icons"
 
-kMembers_Formats = dict(blink_colon="bool", blink_rate="integer", date='string', date_dom_suffix='bool',
-                        display='string', forecast_time="integer", large_font="string", large_font_size="integer",
-                        small_font="string", small_font_size="integer", text_color='list', time='string',
-                        weather='string', window_size='list')
-kMembers_Brightness = dict(high='float', high_tom_start='string', low='float', low_tom_start='string')
-kMembers_Weather = dict(api='string', check_interval='integer')
-kMembers_BOMWeather = dict(forecast_path='string', forecast_place='string', ftp_host='string', ftp_port='integer',
+MEMBERS_FORMATS = dict(blink_colon="bool", blink_rate="integer", date='string', date_dom_suffix='bool',
+                       display='string', forecast_time="integer", large_font="string", large_font_size="integer",
+                       small_font="string", small_font_size="integer", text_color='list', time='string',
+                       weather='string', window_size='list')
+MEMBERS_BRIGHTNESS = dict(high='float', high_tom_start='string', low='float', low_tom_start='string')
+MEMBERS_WEATHER = dict(api='string', check_interval='integer')
+MEMBERS_BOM_WEATHER = dict(forecast_path='string', forecast_place='string', ftp_host='string', ftp_port='integer',
                            observation_url='string', observation_place='string')
-kMembers_OWMWeather = dict(api_key='string', place='string', temperature_scale='string')
-kBlankImage = "blank.png"
+MEMBERS_OWM_WEATHER = dict(api_key='string', place='string', temperature_scale='string')
+BLANK_IMAGE = "blank.png"
 
 gRunning = True
 
@@ -106,12 +106,12 @@ class Config:
     def __init__(self, filename="config.ini"):
         self.filename = filename
         settings = configparser.ConfigParser(interpolation=configparser.ExtendedInterpolation())
-        settings.read(kConfigFilename)
-        self.config["formats"] = self.loadSection(settings, "formats", kMembers_Formats)
-        self.config["brightness"] = self.loadSection(settings, "brightness", kMembers_Brightness)
-        self.config["weather"] = self.loadSection(settings, "weather", kMembers_Weather)
-        self.config["bom_weather"] = self.loadSection(settings, "bom_weather", kMembers_BOMWeather)
-        self.config["owm_weather"] = self.loadSection(settings, "owm_weather", kMembers_OWMWeather)
+        settings.read(CONFIG_FILENAME)
+        self.config["formats"] = self.loadSection(settings, "formats", MEMBERS_FORMATS)
+        self.config["brightness"] = self.loadSection(settings, "brightness", MEMBERS_BRIGHTNESS)
+        self.config["weather"] = self.loadSection(settings, "weather", MEMBERS_WEATHER)
+        self.config["bom_weather"] = self.loadSection(settings, "bom_weather", MEMBERS_BOM_WEATHER)
+        self.config["owm_weather"] = self.loadSection(settings, "owm_weather", MEMBERS_OWM_WEATHER)
         return
 
     def parseConfigEntry(self, settings, section, member, memberType):
@@ -164,6 +164,7 @@ class BrightnessMonitor(threading.Thread):
         """
         rawValue = abs(int(rawValue)) % 256  # limit to integers 0-255
         if platform.machine() == "armv7l":
+            # noinspection PyUnresolvedReferences
             import rpi_backlight as bl
             bl.set_brightness(rawValue)
             Log(self.args, "set brightness: rawValue: %d" % rawValue)
@@ -283,7 +284,7 @@ class OWMWeatherMonitor(WeatherMonitor):
             if iconName is None:
                 iconName = self._weather["iconName"]
             if iconName is not None:
-                imagePath = os.path.join(kOWMIconsDir, self._weather["iconName"] + ".png")
+                imagePath = os.path.join(OWM_ICONS_DIR, self._weather["iconName"] + ".png")
             return imagePath
 
     def doForecast(self):
@@ -362,7 +363,7 @@ class BOMWeatherMonitor(WeatherMonitor):
                 if iconName is None:
                     iconName = self._weather["iconName"]
                 iconName = self.kBOMIcons[iconName]
-                imagePath = os.path.join(kBOMIconsDir, iconName + ".png")
+                imagePath = os.path.join(BOM_ICONS_DIR, iconName + ".png")
         return imagePath
 
     def addLines(self, lines):
@@ -451,6 +452,7 @@ class TimeWidget(Button):
         self.update(0)
         return
 
+    # noinspection PyUnreachableCode
     def on_request_close(self, *args):
         _ = args
         global gRunning
@@ -523,7 +525,7 @@ class WeatherIconWidget(Image):
         super(WeatherIconWidget, self).__init__()
         self.myConfig = myConfig
         self.weatherMonitor = weatherMonitor
-        self.source = kBlankImage
+        self.source = BLANK_IMAGE
         Clock.schedule_interval(self.update, 5)  # fine for temperature
         self.update(0)
         return
@@ -561,11 +563,11 @@ class ForecastWidget(Label):
             tempMin = weather['tempMin']
             tempMax = weather['tempMax']
             if tempMin is not None and tempMax is not None:
-                self.text = "%2.1f%s-%2.1f%s" % (tempMin, kDegreeSign, tempMax, kDegreeSign)
+                self.text = "%2.1f%s-%2.1f%s" % (tempMin, DEGREE_SIGN, tempMax, DEGREE_SIGN)
             elif tempMin is None and tempMax is not None:
-                self.text = "Max: %2.1f%s" % (tempMax, kDegreeSign)
+                self.text = "Max: %2.1f%s" % (tempMax, DEGREE_SIGN)
             elif tempMin is not None and tempMax is None:
-                self.text = "Min: %2.1f%s" % (tempMin, kDegreeSign)
+                self.text = "Min: %2.1f%s" % (tempMin, DEGREE_SIGN)
         return
 
 
@@ -589,7 +591,7 @@ class OneDayForecastWidget(BoxLayout):
             self.tempWidget.font_name = myConfig.get()["formats"]["small_font"]
         self.tempWidget.font_size = self.myConfig.get()["formats"]["small_font_size"]
         self.iconWidget = Image()
-        self.iconWidget.source = kBlankImage
+        self.iconWidget.source = BLANK_IMAGE
         self.add_widget(self.dowWidget)
         self.add_widget(self.iconWidget)
         self.add_widget(self.tempWidget)
@@ -613,7 +615,7 @@ class OneDayForecastWidget(BoxLayout):
                     self.dowWidget.text = dowName
                 if "tempMax" in forecast:
                     temp = forecast['tempMax']
-                    self.tempWidget.text = "%2.1f%s" % (temp, kDegreeSign)
+                    self.tempWidget.text = "%2.1f%s" % (temp, DEGREE_SIGN)
                 if "iconName" in forecast:
                     iconPath = self.weatherMonitor.iconPath(forecast["iconName"])
                     if iconPath is not None:
@@ -621,7 +623,7 @@ class OneDayForecastWidget(BoxLayout):
             else:
                 # otherwise wipe any lingering info
                 self.dowWidget.text = ""
-                self.iconWidget.source = kBlankImage
+                self.iconWidget.source = BLANK_IMAGE
                 self.tempWidget.text = ""
         except IndexError:
             # there is no forecast for this day
@@ -667,7 +669,7 @@ class TempNowWidget(Label):
         if weather is not None:
             tempNow = weather['tempNow']
             if tempNow is not None:
-                self.text = "%2.1f%s" % (tempNow, kDegreeSign)
+                self.text = "%2.1f%s" % (tempNow, DEGREE_SIGN)
         return
 
 
