@@ -20,6 +20,7 @@ from kivy.core.window import Window
 sys.argv = argvCopy
 
 import calendar
+import dateutil.parser
 import json
 import os
 import platform
@@ -394,8 +395,8 @@ class BOMWeatherMonitor(WeatherMonitor):
                     Log(self.args, "tempMin: %s" % thisElement.cdata)
                     info["tempMin"] = float(thisElement.cdata)
         if timestamp:
-            timeTuple = time.strptime(timestamp, "%Y-%m-%dT%H:%M:%S+10:00")
-            thisTime = time.mktime(timeTuple)
+            d = dateutil.parser.parse(timestamp)
+            thisTime = time.mktime(d.timetuple()) + d.microsecond / 1E6
             info["timestamp"] = thisTime
         return info
 
@@ -445,7 +446,7 @@ class TimeWidget(Button):
         self.bold = True
         self.lastTime = ""
         self.bind(on_press=self.on_request_close)
-        #self.bind(on_touch_down=self.on_request_close)
+        # self.bind(on_touch_down=self.on_request_close)
         Clock.schedule_interval(self.update, 1.0 / 2.0)  # 1/2 second resolution for 1 second accuracy
         self.update(0)
         return
@@ -597,6 +598,7 @@ class OneDayForecastWidget(BoxLayout):
         return
 
     def update(self, dt):
+        _ = dt
         self.showInfo()
         return
 
@@ -691,7 +693,7 @@ class InfoWidget(BoxLayout):
         momentarily show 5-day forecast
         :return:
         """
-        _= args
+        _ = args
         if not self.showingFiveDay:
             self.remove_widget(self.dateWidget)
             self.remove_widget(self.TempNowWidget)
