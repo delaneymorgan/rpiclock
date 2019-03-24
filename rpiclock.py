@@ -3,6 +3,7 @@
 
 import sys
 
+# this allows rpiclock to get command-line arguments after kivy has processed it's.
 argvCopy = sys.argv
 sys.argv = sys.argv[:1]
 
@@ -59,7 +60,7 @@ gRunning = True
 # =============================================================================
 
 
-def IsRPi():
+def is_rpi():
     if platform.machine() == "armv7l":
         return True
     return False
@@ -68,16 +69,16 @@ def IsRPi():
 # =============================================================================
 
 
-def Log(args, qString):
+def log(args, string):
     if args.verbose:
-        print(qString)
+        print(string)
     return
 
 
 # =============================================================================
 
 
-def SuffixNum(num):
+def suffix_num(num):
     """
     Some major juju by python god xsot
 
@@ -85,8 +86,8 @@ def SuffixNum(num):
     :return: the suffixed number
     """
     def func(n): return repr(n) + 'tsnrhtdd'[n % 5 * (n % 100 ^ 15 > 4 > n % 10)::4]
-    suffixedNum = func(num)
-    return suffixedNum
+    suffixed_num = func(num)
+    return suffixed_num
 
 
 # =============================================================================
@@ -95,7 +96,7 @@ def SuffixNum(num):
 class Config:
     config = {}
 
-    configTypeParsers = {
+    CONFIG_TYPE_PARSERS = {
         'list': lambda self, settings, section, member: eval(settings.get(section, member)),
         'string': lambda self, settings, section, member: settings.get(section, member),
         'integer': lambda self, settings, section, member: settings.getint(section, member),
@@ -107,20 +108,20 @@ class Config:
         self.filename = filename
         settings = configparser.ConfigParser(interpolation=configparser.ExtendedInterpolation())
         settings.read(CONFIG_FILENAME)
-        self.config["formats"] = self.loadSection(settings, "formats", MEMBERS_FORMATS)
-        self.config["brightness"] = self.loadSection(settings, "brightness", MEMBERS_BRIGHTNESS)
-        self.config["weather"] = self.loadSection(settings, "weather", MEMBERS_WEATHER)
-        self.config["bom_weather"] = self.loadSection(settings, "bom_weather", MEMBERS_BOM_WEATHER)
-        self.config["owm_weather"] = self.loadSection(settings, "owm_weather", MEMBERS_OWM_WEATHER)
+        self.config["formats"] = self.load_section(settings, "formats", MEMBERS_FORMATS)
+        self.config["brightness"] = self.load_section(settings, "brightness", MEMBERS_BRIGHTNESS)
+        self.config["weather"] = self.load_section(settings, "weather", MEMBERS_WEATHER)
+        self.config["bom_weather"] = self.load_section(settings, "bom_weather", MEMBERS_BOM_WEATHER)
+        self.config["owm_weather"] = self.load_section(settings, "owm_weather", MEMBERS_OWM_WEATHER)
         return
 
-    def parseConfigEntry(self, settings, section, member, memberType):
-        return self.configTypeParsers[memberType](self, settings, section, member)
+    def parse_config_entry(self, settings, section, member, member_type):
+        return self.CONFIG_TYPE_PARSERS[member_type](self, settings, section, member)
 
-    def loadSection(self, settings, section, sectionMembers):
+    def load_section(self, settings, section, section_members):
         redis = {}
-        for member in sectionMembers:
-            redis[member] = self.parseConfigEntry(settings, section, member, sectionMembers[member])
+        for member in section_members:
+            redis[member] = self.parse_config_entry(settings, section, member, section_members[member])
         return redis
 
     def get(self):
@@ -138,15 +139,16 @@ class BrightnessMonitor(threading.Thread):
     kMaxBrightness = 255        # display's max raw brightness value
     kMinBrightness = 0          # display's min raw brightness value
 
-    def __init__(self, args, myConfig):
+    def __init__(self, args, my_config):
         super(BrightnessMonitor, self).__init__()
         self.args = args
-        self.myConfig = myConfig
-        self.highMoDStart = self.ToDToMoD(self.myConfig.get()["brightness"]["high_tom_start"])
-        self.lowMoDStart = self.ToDToMoD(self.myConfig.get()["brightness"]["low_tom_start"])
+        self.my_config = my_config
+        self.high_mod_start = self.tod_to_mod(self.my_config.get()["brightness"]["high_tom_start"])
+        self.low_mod_start = self.tod_to_mod(self.my_config.get()["brightness"]["low_tom_start"])
         return
 
-    def ToDToMoD(self, tod):
+    @staticmethod
+    def tod_to_mod(tod):
         """
         Time Of Day -> Minute Of Day
         :param tod: the time of day in hh:mm format
@@ -156,38 +158,38 @@ class BrightnessMonitor(threading.Thread):
         mod = (int(tod[0]) * 60) + int(tod[1])
         return mod
 
-    def setBacklight(self, rawValue):
+    def set_backlight(self, raw_value):
         """
         set the display's backlight brightness
-        :param rawValue: 0-255
+        :param raw_value: 0-255
         :return:
         """
-        rawValue = abs(int(rawValue)) % 256  # limit to integers 0-255
+        raw_value = abs(int(raw_value)) % 256  # limit to integers 0-255
         if platform.machine() == "armv7l":
             # noinspection PyUnresolvedReferences
             import rpi_backlight as bl
-            bl.set_brightness(rawValue)
-            Log(self.args, "set brightness: rawValue: %d" % rawValue)
+            bl.set_brightness(raw_value)
+            log(self.args, "set brightness: rawValue: %d" % raw_value)
         return
 
-    def checkBrightness(self):
+    def check_brightness(self):
         # TODO: maybe use weather observation to base dimming on sunrise/sunset
-        timeNow = time.time()
-        localTime = time.localtime(timeNow)
-        minOfDay = (60 * localTime.tm_hour) + localTime.tm_min
-        if self.highMoDStart < self.lowMoDStart and self.highMoDStart < minOfDay < self.lowMoDStart:
-            brightness = self.myConfig.get()["brightness"]["high"]
+        time_now = time.time()
+        local_time = time.localtime(time_now)
+        min_of_day = (60 * local_time.tm_hour) + local_time.tm_min
+        if self.high_mod_start < self.low_mod_start and self.high_mod_start < min_of_day < self.low_mod_start:
+            brightness = self.my_config.get()["brightness"]["high"]
         else:
-            brightness = self.myConfig.get()["brightness"]["low"]
-        Log(self.args, "Setting brightness: %3.1f%%" % brightness)
+            brightness = self.my_config.get()["brightness"]["low"]
+        log(self.args, "Setting brightness: %3.1f%%" % brightness)
         # convert brightness % to raw brightness setting
-        realBrightness = (brightness / 100.0) * (self.kMaxBrightness - self.kMinBrightness) + self.kMinBrightness
-        self.setBacklight(realBrightness)
+        real_brightness = (brightness / 100.0) * (self.kMaxBrightness - self.kMinBrightness) + self.kMinBrightness
+        self.set_backlight(real_brightness)
         return
 
     def run(self):
         while gRunning:
-            self.checkBrightness()
+            self.check_brightness()
             time.sleep(1)  # I'd sleep for more, but it holds up quit
         return
 
@@ -200,13 +202,13 @@ class WeatherMonitor(threading.Thread):
     """
     base abstract class for monitoring weather
     """
-    def __init__(self, args, myConfig):
+    def __init__(self, args, my_config):
         super(WeatherMonitor, self).__init__()
         self.args = args
-        self.myConfig = myConfig
+        self.my_config = my_config
         self.service = None
-        self.lastCheck = 0
-        self._weatherLock = threading.Lock()
+        self.last_check = 0
+        self._weather_lock = threading.Lock()
         self._weather = dict(
             tempNow=None,   # current temperature in Celcius
             tempMin=None,   # forecast minimum temperature in Celcius
@@ -221,29 +223,29 @@ class WeatherMonitor(threading.Thread):
         returns a copy of the weather structure
         :return: weather copy
         """
-        with self._weatherLock:
+        with self._weather_lock:
             return dict(self._weather)
 
-    def iconPath(self):
+    def icon_path(self):
         raise NotImplementedError()
 
-    def doObservation(self):
+    def do_observation(self):
         raise NotImplementedError()
 
-    def doForecast(self):
+    def do_forecast(self):
         raise NotImplementedError()
 
     def run(self):
         while gRunning:
-            timeNow = time.time()
-            waitRemaining = self.myConfig.get()["weather"]["check_interval"] - (timeNow - self.lastCheck)
-            if waitRemaining < 0:
-                Log(self.args, "polling weather")
-                self.lastCheck = timeNow
-                self.doObservation()
-                self.doForecast()
+            time_now = time.time()
+            wait_remaining = self.my_config.get()["weather"]["check_interval"] - (time_now - self.last_check)
+            if wait_remaining < 0:
+                log(self.args, "polling weather")
+                self.last_check = time_now
+                self.do_observation()
+                self.do_forecast()
             else:
-                Log(self.args, "secs until next weather poll: %0.1f secs" % waitRemaining)
+                log(self.args, "secs until next weather poll: %0.1f secs" % wait_remaining)
                 time.sleep(1)  # I'd sleep for more, but it holds up quit
         return
 
@@ -256,40 +258,40 @@ class OWMWeatherMonitor(WeatherMonitor):
     """
     class for monitoring weather via Open Weather Map API
     """
-    def __init__(self, args, myConfig):
-        super(OWMWeatherMonitor, self).__init__(args, myConfig)
+    def __init__(self, args, my_config):
+        super(OWMWeatherMonitor, self).__init__(args, my_config)
         try:
-            self.service = pyowm.OWM(myConfig.get()["owm_weather"]["api_key"])
-            self.doObservation()
+            self.service = pyowm.OWM(my_config.get()["owm_weather"]["api_key"])
+            self.do_observation()
         except Exception as e:
             print("OWMWeatherMonitor.__init__() Error: %s/%s" % (type(e), str(e)))
         return
 
-    def doObservation(self):
-        Log(self.args, "retrieving observation")
+    def do_observation(self):
+        log(self.args, "retrieving observation")
         try:
-            obs = self.service.weather_at_place(self.myConfig.get()["owm_weather"]["place"])
-            scale = self.myConfig.get()["owm_weather"]["temperature_scale"]
-            obsWeather = obs.get_weather()
-            with self._weatherLock:
-                self._weather["tempNow"] = obsWeather.get_temperature(scale)['temp']
-                self._weather["iconName"] = obsWeather.get_weather_icon_name()
+            obs = self.service.weather_at_place(self.my_config.get()["owm_weather"]["place"])
+            scale = self.my_config.get()["owm_weather"]["temperature_scale"]
+            obs_weather = obs.get_weather()
+            with self._weather_lock:
+                self._weather["tempNow"] = obs_weather.get_temperature(scale)['temp']
+                self._weather["iconName"] = obs_weather.get_weather_icon_name()
         except Exception as e:
             print("OWMWeatherMonitor.doObservation() Error: %s/%s" % (type(e), str(e)))
         return
 
-    def iconPath(self, iconName=None):
-        imagePath = None
-        with self._weatherLock:
-            if iconName is None:
-                iconName = self._weather["iconName"]
-            if iconName is not None:
-                imagePath = os.path.join(OWM_ICONS_DIR, self._weather["iconName"] + ".png")
-            return imagePath
+    def icon_path(self, icon_name=None):
+        image_path = None
+        with self._weather_lock:
+            if icon_name is None:
+                icon_name = self._weather["iconName"]
+            if icon_name is not None:
+                image_path = os.path.join(OWM_ICONS_DIR, self._weather["iconName"] + ".png")
+            return image_path
 
-    def doForecast(self):
-        Log(self.args, "retrieving forecast")
-        with self._weatherLock:
+    def do_forecast(self):
+        log(self.args, "retrieving forecast")
+        with self._weather_lock:
             # TODO: get an API key with forecast rights and do this
             pass
         return
@@ -328,104 +330,104 @@ class BOMWeatherMonitor(WeatherMonitor):
         '19': "tropicalcyclone"
     }
 
-    def __init__(self, args, myConfig):
-        super(BOMWeatherMonitor, self).__init__(args, myConfig)
-        self.doObservation()
+    def __init__(self, args, my_config):
+        super(BOMWeatherMonitor, self).__init__(args, my_config)
+        self.do_observation()
         return
 
-    def doObservation(self):
-        Log(self.args, "retrieving observation")
-        url = self.myConfig.get()["bom_weather"]["observation_url"]
-        place = self.myConfig.get()["bom_weather"]["observation_place"]
+    def do_observation(self):
+        log(self.args, "retrieving observation")
+        url = self.my_config.get()["bom_weather"]["observation_url"]
+        place = self.my_config.get()["bom_weather"]["observation_place"]
         observation_url = url % (place, place)
         try:
             resp = requests.get(observation_url)
             if resp:
                 # observations typically contains many (hundreds, perhaps),
                 # lets just print out the current observation.
-                Log(self.args, "Current observation data:")
+                log(self.args, "Current observation data:")
                 content = resp.content
                 content = json.loads(content)
                 observation = content["observations"]["data"][0]
-                Log(self.args, "tempNow: %s" % observation["air_temp"])
-                with self._weatherLock:
+                log(self.args, "tempNow: %s" % observation["air_temp"])
+                with self._weather_lock:
                     self._weather["tempNow"] = observation["air_temp"]
             else:
-                Log(self.args, "No observations retrieved")
+                log(self.args, "No observations retrieved")
         except Exception as e:
             print("BOMWeatherMonitor.doObservation() Error: %s/%s" % (type(e), str(e)))
         return
 
-    def iconPath(self, iconName=None):
-        imagePath = None
-        with self._weatherLock:
+    def icon_path(self, icon_name=None):
+        image_path = None
+        with self._weather_lock:
             if self._weather["iconName"] is not None:
-                if iconName is None:
-                    iconName = self._weather["iconName"]
-                iconName = self.kBOMIcons[iconName]
-                imagePath = os.path.join(BOM_ICONS_DIR, iconName + ".png")
-        return imagePath
+                if icon_name is None:
+                    icon_name = self._weather["iconName"]
+                icon_name = self.kBOMIcons[icon_name]
+                image_path = os.path.join(BOM_ICONS_DIR, icon_name + ".png")
+        return image_path
 
-    def addLines(self, lines):
+    def add_lines(self, lines):
         return
 
-    def decodeElements(self, forecastElements, timestamp=None):
+    def decode_elements(self, forecast_elements, timestamp=None):
         info = {}
         # NOTE: sometimes this is a single dict, other times it's a list of dicts.
-        if "type" in forecastElements:
+        if "type" in forecast_elements:
             # it's a single dict
-            if forecastElements["type"] == "forecast_icon_code":
-                Log(self.args, "iconName: %s" % forecastElements.cdata)
-                info["iconName"] = forecastElements.cdata
-            elif forecastElements["type"] == "air_temperature_maximum":
-                Log(self.args, "tempMax: %s" % forecastElements.cdata)
-                info["tempMax"] = float(forecastElements.cdata)
-            elif forecastElements["type"] == "air_temperature_minimum":
-                Log(self.args, "tempMin: %s" % forecastElements.cdata)
-                info["tempMin"] = float(forecastElements.cdata)
+            if forecast_elements["type"] == "forecast_icon_code":
+                log(self.args, "iconName: %s" % forecast_elements.cdata)
+                info["iconName"] = forecast_elements.cdata
+            elif forecast_elements["type"] == "air_temperature_maximum":
+                log(self.args, "tempMax: %s" % forecast_elements.cdata)
+                info["tempMax"] = float(forecast_elements.cdata)
+            elif forecast_elements["type"] == "air_temperature_minimum":
+                log(self.args, "tempMin: %s" % forecast_elements.cdata)
+                info["tempMin"] = float(forecast_elements.cdata)
         else:
             # it's an array of dicts
-            for thisElement in forecastElements:
+            for thisElement in forecast_elements:
                 if thisElement["type"] == "forecast_icon_code":
-                    Log(self.args, "iconName: %s" % thisElement.cdata)
+                    log(self.args, "iconName: %s" % thisElement.cdata)
                     info["iconName"] = str(thisElement.cdata)
                 elif thisElement["type"] == "air_temperature_maximum":
-                    Log(self.args, "tempMax: %s" % thisElement.cdata)
+                    log(self.args, "tempMax: %s" % thisElement.cdata)
                     info["tempMax"] = float(thisElement.cdata)
                 elif thisElement["type"] == "air_temperature_minimum":
-                    Log(self.args, "tempMin: %s" % thisElement.cdata)
+                    log(self.args, "tempMin: %s" % thisElement.cdata)
                     info["tempMin"] = float(thisElement.cdata)
         if timestamp:
             d = dateutil.parser.parse(timestamp)
-            thisTime = time.mktime(d.timetuple()) + d.microsecond / 1E6
-            info["timestamp"] = thisTime
+            this_time = time.mktime(d.timetuple()) + d.microsecond / 1E6
+            info["timestamp"] = this_time
         return info
 
-    def doForecast(self):
-        Log(self.args, "retrieving forecast")
+    def do_forecast(self):
+        log(self.args, "retrieving forecast")
         try:
-            ftp = FTP(self.myConfig.get()["bom_weather"]["ftp_host"])
+            ftp = FTP(self.my_config.get()["bom_weather"]["ftp_host"])
             ftp.login()
-            fcPath = self.myConfig.get()["bom_weather"]["forecast_path"] % \
-                     self.myConfig.get()["bom_weather"]["forecast_place"]
-            outStr = StringIO.StringIO()  # Use a string like a file.
-            ftp.retrlines('RETR ' + fcPath, outStr.write)
-            elements = untangle.parse(outStr.getvalue())
-            outStr.close()
+            fc_path = self.my_config.get()["bom_weather"]["forecast_path"] % \
+                      self.my_config.get()["bom_weather"]["forecast_place"]
+            out_str = StringIO.StringIO()  # Use a string like a file.
+            ftp.retrlines('RETR ' + fc_path, out_str.write)
+            elements = untangle.parse(out_str.getvalue())
+            out_str.close()
             area = elements.product.forecast.area[2]
-            todaysForecast = area.forecast_period[0]
-            tfcElements = todaysForecast.element
-            info = self.decodeElements(tfcElements)
-            with self._weatherLock:
+            todays_forecast = area.forecast_period[0]
+            tfc_elements = todays_forecast.element
+            info = self.decode_elements(tfc_elements)
+            with self._weather_lock:
                 for thisKey in info:
                     self._weather[thisKey] = info[thisKey]
-            periodsForecast = area.forecast_period
-            with self._weatherLock:
+            periods_forecast = area.forecast_period
+            with self._weather_lock:
                 self._weather["forecast"] = []
-            for dayForecast in periodsForecast:
-                dayElements = dayForecast.element
-                info = self.decodeElements(dayElements, dayForecast["start-time-local"])
-                with self._weatherLock:
+            for dayForecast in periods_forecast:
+                day_elements = dayForecast.element
+                info = self.decode_elements(day_elements, dayForecast["start-time-local"])
+                with self._weather_lock:
                     self._weather["forecast"].append(info)
         except Exception as e:
             print("BOMWeatherMonitor.doForecast() Error: %s/%s" % (type(e), str(e)))
@@ -436,13 +438,13 @@ class BOMWeatherMonitor(WeatherMonitor):
 
 
 class TimeWidget(Button):
-    def __init__(self, myConfig, size_hint=(None, None)):
+    def __init__(self, my_config, size_hint=(None, None)):
         super(TimeWidget, self).__init__(text="00:00", size_hint=size_hint)
-        self.myConfig = myConfig
-        if myConfig.get()["formats"]["large_font"]:
-            self.font_name = myConfig.get()["formats"]["large_font"]
-        self.font_size = myConfig.get()["formats"]["large_font_size"]
-        self.color = myConfig.get()["formats"]["text_color"]
+        self.my_config = my_config
+        if my_config.get()["formats"]["large_font"]:
+            self.font_name = my_config.get()["formats"]["large_font"]
+        self.font_size = my_config.get()["formats"]["large_font_size"]
+        self.color = my_config.get()["formats"]["text_color"]
         self.background_color = [0, 0, 0, 0]
         self.bold = True
         self.lastTime = ""
@@ -453,6 +455,7 @@ class TimeWidget(Button):
         return
 
     # noinspection PyUnreachableCode
+    # noinspection PyMethodMayBeStatic
     def on_request_close(self, *args):
         _ = args
         global gRunning
@@ -463,24 +466,24 @@ class TimeWidget(Button):
 
     def update(self, dt):
         _ = dt
-        timeNow = time.time()
+        time_now = time.time()
 
         # blink the colon if required
-        blankColon = False
-        blinkRate = self.myConfig.get()["formats"]["blink_rate"]
-        if self.myConfig.get()["formats"]["blink_colon"]:
-            if (int(timeNow) % (2 * blinkRate)) < blinkRate:
-                blankColon = True
+        blank_colon = False
+        blink_rate = self.my_config.get()["formats"]["blink_rate"]
+        if self.my_config.get()["formats"]["blink_colon"]:
+            if (int(time_now) % (2 * blink_rate)) < blink_rate:
+                blank_colon = True
 
-        localTime = time.localtime(timeNow)
-        timeFormat = self.myConfig.get()["formats"]["time"]
-        if blankColon:
-            timeFormat = string.replace(timeFormat, ":", " ")
-        timeStr = time.strftime(timeFormat, localTime)
-        if timeStr != self.lastTime:
+        local_time = time.localtime(time_now)
+        time_format = self.my_config.get()["formats"]["time"]
+        if blank_colon:
+            time_format = string.replace(time_format, ":", " ")
+        time_str = time.strftime(time_format, local_time)
+        if time_str != self.lastTime:
             # only update on change (save some CPU maybe?)
-            self.text = timeStr
-            self.lastTime = timeStr
+            self.text = time_str
+            self.lastTime = time_str
         return
 
 
@@ -488,32 +491,32 @@ class TimeWidget(Button):
 
 
 class DateWidget(Label):
-    def __init__(self, myConfig):
+    def __init__(self, my_config):
         super(DateWidget, self).__init__(text="")
-        self.myConfig = myConfig
-        if myConfig.get()["formats"]["small_font"]:
-            self.font_name = myConfig.get()["formats"]["small_font"]
-        self.font_size = myConfig.get()["formats"]["small_font_size"]
-        self.color = myConfig.get()["formats"]["text_color"]
-        self.lastDate = ""
+        self.my_config = my_config
+        if my_config.get()["formats"]["small_font"]:
+            self.font_name = my_config.get()["formats"]["small_font"]
+        self.font_size = my_config.get()["formats"]["small_font_size"]
+        self.color = my_config.get()["formats"]["text_color"]
+        self.last_date = ""
         Clock.schedule_interval(self.update, 1.0 / 2.0)
         self.update(0)
         return
 
     def update(self, dt):
         _ = dt
-        timeNow = time.time()
-        localTime = time.localtime(timeNow)
-        fmt = self.myConfig.get()["formats"]["date"]
-        if self.myConfig.get()["formats"]["date_dom_suffix"]:
-            monthStr = time.strftime("%B", localTime)
-            domSuffixed = SuffixNum(localTime.tm_mday)
-            dateStr = "%s %s" % (domSuffixed, monthStr)
+        time_now = time.time()
+        local_time = time.localtime(time_now)
+        fmt = self.my_config.get()["formats"]["date"]
+        if self.my_config.get()["formats"]["date_dom_suffix"]:
+            month_str = time.strftime("%B", local_time)
+            dom_suffixed = suffix_num(local_time.tm_mday)
+            date_str = "%s %s" % (dom_suffixed, month_str)
         else:
-            dateStr = time.strftime(fmt, localTime)
-        if dateStr != self.lastDate:
-            self.lastDate = dateStr
-            self.text = dateStr
+            date_str = time.strftime(fmt, local_time)
+        if date_str != self.last_date:
+            self.last_date = date_str
+            self.text = date_str
         return
 
 
@@ -521,10 +524,10 @@ class DateWidget(Label):
 
 
 class WeatherIconWidget(Image):
-    def __init__(self, myConfig, weatherMonitor):
+    def __init__(self, my_config, weather_monitor):
         super(WeatherIconWidget, self).__init__()
-        self.myConfig = myConfig
-        self.weatherMonitor = weatherMonitor
+        self.my_config = my_config
+        self.weather_monitor = weather_monitor
         self.source = BLANK_IMAGE
         Clock.schedule_interval(self.update, 5)  # fine for temperature
         self.update(0)
@@ -532,11 +535,11 @@ class WeatherIconWidget(Image):
 
     def update(self, dt):
         _ = dt
-        weather = self.weatherMonitor.weather()
+        weather = self.weather_monitor.weather()
         if weather is not None:
-            iconPath = self.weatherMonitor.iconPath()
-            if iconPath is not None:
-                self.source = iconPath
+            icon_path = self.weather_monitor.icon_path()
+            if icon_path is not None:
+                self.source = icon_path
         return
 
 
@@ -544,30 +547,30 @@ class WeatherIconWidget(Image):
 
 
 class ForecastWidget(Label):
-    def __init__(self, myConfig, weatherMonitor):
+    def __init__(self, my_config, weather_monitor):
         super(ForecastWidget, self).__init__()
-        self.myConfig = myConfig
-        self.weatherMonitor = weatherMonitor
-        self.color = myConfig.get()["formats"]["text_color"]
-        if myConfig.get()["formats"]["small_font"]:
-            self.font_name = myConfig.get()["formats"]["small_font"]
-        self.font_size = self.myConfig.get()["formats"]["small_font_size"]
+        self.my_config = my_config
+        self.weather_monitor = weather_monitor
+        self.color = my_config.get()["formats"]["text_color"]
+        if my_config.get()["formats"]["small_font"]:
+            self.font_name = my_config.get()["formats"]["small_font"]
+        self.font_size = self.my_config.get()["formats"]["small_font_size"]
         Clock.schedule_interval(self.update, 5)  # fine for temperature
         self.update(0)
         return
 
     def update(self, dt):
         _ = dt
-        weather = self.weatherMonitor.weather()
+        weather = self.weather_monitor.weather()
         if weather is not None:
-            tempMin = weather['tempMin']
-            tempMax = weather['tempMax']
-            if tempMin is not None and tempMax is not None:
-                self.text = "%2.1f%s-%2.1f%s" % (tempMin, DEGREE_SIGN, tempMax, DEGREE_SIGN)
-            elif tempMin is None and tempMax is not None:
-                self.text = "Max: %2.1f%s" % (tempMax, DEGREE_SIGN)
-            elif tempMin is not None and tempMax is None:
-                self.text = "Min: %2.1f%s" % (tempMin, DEGREE_SIGN)
+            temp_min = weather['tempMin']
+            temp_max = weather['tempMax']
+            if temp_min is not None and temp_max is not None:
+                self.text = "%2.1f%s-%2.1f%s" % (temp_min, DEGREE_SIGN, temp_max, DEGREE_SIGN)
+            elif temp_min is None and temp_max is not None:
+                self.text = "Max: %2.1f%s" % (temp_max, DEGREE_SIGN)
+            elif temp_min is not None and temp_max is None:
+                self.text = "Min: %2.1f%s" % (temp_min, DEGREE_SIGN)
         return
 
 
@@ -575,56 +578,56 @@ class ForecastWidget(Label):
 
 
 class OneDayForecastWidget(BoxLayout):
-    def __init__(self, myConfig, weatherMonitor, dayNo):
+    def __init__(self, my_config, weather_monitor, day_no):
         super(OneDayForecastWidget, self).__init__(orientation='vertical')
-        self.myConfig = myConfig
-        self.weatherMonitor = weatherMonitor
-        self.dayNo = dayNo
-        self.dowWidget = Label()
-        self.dowWidget.color = myConfig.get()["formats"]["text_color"]
-        if myConfig.get()["formats"]["small_font"]:
-            self.dowWidget.font_name = myConfig.get()["formats"]["small_font"]
-        self.dowWidget.font_size = self.myConfig.get()["formats"]["small_font_size"]
-        self.tempWidget = Label()
-        self.tempWidget.color = myConfig.get()["formats"]["text_color"]
-        if myConfig.get()["formats"]["small_font"]:
-            self.tempWidget.font_name = myConfig.get()["formats"]["small_font"]
-        self.tempWidget.font_size = self.myConfig.get()["formats"]["small_font_size"]
-        self.iconWidget = Image()
-        self.iconWidget.source = BLANK_IMAGE
-        self.add_widget(self.dowWidget)
-        self.add_widget(self.iconWidget)
-        self.add_widget(self.tempWidget)
+        self.my_config = my_config
+        self.weather_monitor = weather_monitor
+        self.day_no = day_no
+        self.dow_widget = Label()
+        self.dow_widget.color = my_config.get()["formats"]["text_color"]
+        if my_config.get()["formats"]["small_font"]:
+            self.dow_widget.font_name = my_config.get()["formats"]["small_font"]
+        self.dow_widget.font_size = self.my_config.get()["formats"]["small_font_size"]
+        self.temp_widget = Label()
+        self.temp_widget.color = my_config.get()["formats"]["text_color"]
+        if my_config.get()["formats"]["small_font"]:
+            self.temp_widget.font_name = my_config.get()["formats"]["small_font"]
+        self.temp_widget.font_size = self.my_config.get()["formats"]["small_font_size"]
+        self.icon_widget = Image()
+        self.icon_widget.source = BLANK_IMAGE
+        self.add_widget(self.dow_widget)
+        self.add_widget(self.icon_widget)
+        self.add_widget(self.temp_widget)
         Clock.schedule_interval(self.update, 5)  # fine for temperature
-        self.showInfo()
+        self.show_info()
         return
 
     def update(self, dt):
         _ = dt
-        self.showInfo()
+        self.show_info()
         return
 
-    def showInfo(self):
+    def show_info(self):
         try:
-            forecasts = self.weatherMonitor.weather()["forecast"]
-            forecast = forecasts[self.dayNo]
+            forecasts = self.weather_monitor.weather()["forecast"]
+            forecast = forecasts[self.day_no]
             if any(forecast):
                 if "timestamp" in forecast:
-                    timeNow = time.localtime(forecast['timestamp'])
-                    dowName = calendar.day_abbr[timeNow.tm_wday]
-                    self.dowWidget.text = dowName
+                    time_now = time.localtime(forecast['timestamp'])
+                    dow_name = calendar.day_abbr[time_now.tm_wday]
+                    self.dow_widget.text = dow_name
                 if "tempMax" in forecast:
                     temp = forecast['tempMax']
-                    self.tempWidget.text = "%2.1f%s" % (temp, DEGREE_SIGN)
+                    self.temp_widget.text = "%2.1f%s" % (temp, DEGREE_SIGN)
                 if "iconName" in forecast:
-                    iconPath = self.weatherMonitor.iconPath(forecast["iconName"])
-                    if iconPath is not None:
-                        self.iconWidget.source = iconPath
+                    icon_path = self.weather_monitor.icon_path(forecast["iconName"])
+                    if icon_path is not None:
+                        self.icon_widget.source = icon_path
             else:
                 # otherwise wipe any lingering info
-                self.dowWidget.text = ""
-                self.iconWidget.source = BLANK_IMAGE
-                self.tempWidget.text = ""
+                self.dow_widget.text = ""
+                self.icon_widget.source = BLANK_IMAGE
+                self.temp_widget.text = ""
         except IndexError:
             # there is no forecast for this day
             pass
@@ -635,15 +638,15 @@ class OneDayForecastWidget(BoxLayout):
 
 
 class FiveDayForecastWidget(BoxLayout):
-    def __init__(self, myConfig, weatherMonitor):
+    def __init__(self, my_config, weather_monitor):
         super(FiveDayForecastWidget, self).__init__()
-        self.myConfig = myConfig
-        self.weatherMonitor = weatherMonitor
+        self.my_config = my_config
+        self.weather_monitor = weather_monitor
         self.days = []
         for dayNo in range(0, 5):
-            newDay = OneDayForecastWidget(myConfig, weatherMonitor, dayNo)
-            self.days.append(newDay)
-            self.add_widget(newDay)
+            new_day = OneDayForecastWidget(my_config, weather_monitor, dayNo)
+            self.days.append(new_day)
+            self.add_widget(new_day)
         return
 
 
@@ -651,25 +654,25 @@ class FiveDayForecastWidget(BoxLayout):
 
 
 class TempNowWidget(Label):
-    def __init__(self, myConfig, weatherMonitor):
+    def __init__(self, my_config, weather_monitor):
         super(TempNowWidget, self).__init__()
-        self.myConfig = myConfig
-        self.weatherMonitor = weatherMonitor
-        self.color = myConfig.get()["formats"]["text_color"]
-        if myConfig.get()["formats"]["small_font"]:
-            self.font_name = myConfig.get()["formats"]["small_font"]
-        self.font_size = self.myConfig.get()["formats"]["small_font_size"]
+        self.my_config = my_config
+        self.weather_monitor = weather_monitor
+        self.color = my_config.get()["formats"]["text_color"]
+        if my_config.get()["formats"]["small_font"]:
+            self.font_name = my_config.get()["formats"]["small_font"]
+        self.font_size = self.my_config.get()["formats"]["small_font_size"]
         Clock.schedule_interval(self.update, 5)  # fine for temperature
         self.update(0)
         return
 
     def update(self, dt):
         _ = dt
-        weather = self.weatherMonitor.weather()
+        weather = self.weather_monitor.weather()
         if weather is not None:
-            tempNow = weather['tempNow']
-            if tempNow is not None:
-                self.text = "%2.1f%s" % (tempNow, DEGREE_SIGN)
+            temp_now = weather['tempNow']
+            if temp_now is not None:
+                self.text = "%2.1f%s" % (temp_now, DEGREE_SIGN)
         return
 
 
@@ -677,53 +680,55 @@ class TempNowWidget(Label):
 
 
 class InfoWidget(BoxLayout):
-    def __init__(self, myConfig, weatherMonitor):
+    def __init__(self, my_config, weather_monitor):
         super(InfoWidget, self).__init__()
-        self.myConfig = myConfig
-        self.dateWidget = DateWidget(myConfig)
-        self.TempNowWidget = TempNowWidget(myConfig, weatherMonitor)
-        self.forecastWidget = ForecastWidget(myConfig, weatherMonitor)
-        self.iconWidget = WeatherIconWidget(myConfig, weatherMonitor)
-        self.fiveDayWidget = FiveDayForecastWidget(myConfig, weatherMonitor)
-        self.bind(on_touch_down=self.showForecast)
+        self.showing_five_day = None
+        self.five_day_start = None
+        self.my_config = my_config
+        self.date_widget = DateWidget(my_config)
+        self.temp_now_widget = TempNowWidget(my_config, weather_monitor)
+        self.forecast_widget = ForecastWidget(my_config, weather_monitor)
+        self.icon_widget = WeatherIconWidget(my_config, weather_monitor)
+        self.five_day_widget = FiveDayForecastWidget(my_config, weather_monitor)
+        self.bind(on_touch_down=self.show_forecast)
         Clock.schedule_interval(self.update, 0.5)
-        self.showInfo()
+        self.show_info()
         return
 
-    def showForecast(self, *args):
+    def show_forecast(self, *args):
         """
         momentarily show 5-day forecast
         :return:
         """
         _ = args
-        if not self.showingFiveDay:
-            self.remove_widget(self.dateWidget)
-            self.remove_widget(self.TempNowWidget)
-            self.remove_widget(self.forecastWidget)
-            self.remove_widget(self.iconWidget)
-            self.add_widget(self.fiveDayWidget)
-            self.showingFiveDay = True
-            self.fiveDayStart = time.time()
+        if not self.showing_five_day:
+            self.remove_widget(self.date_widget)
+            self.remove_widget(self.temp_now_widget)
+            self.remove_widget(self.forecast_widget)
+            self.remove_widget(self.icon_widget)
+            self.add_widget(self.five_day_widget)
+            self.showing_five_day = True
+            self.five_day_start = time.time()
         return
 
-    def showInfo(self):
-        self.remove_widget(self.fiveDayWidget)
-        self.add_widget(self.dateWidget)
-        self.add_widget(self.TempNowWidget)
-        self.add_widget(self.forecastWidget)
-        self.add_widget(self.iconWidget)
-        self.showingFiveDay = False
-        self.fiveDayStart = None
+    def show_info(self):
+        self.remove_widget(self.five_day_widget)
+        self.add_widget(self.date_widget)
+        self.add_widget(self.temp_now_widget)
+        self.add_widget(self.forecast_widget)
+        self.add_widget(self.icon_widget)
+        self.showing_five_day = False
+        self.five_day_start = None
         return
 
     def update(self, dt):
         _ = dt
-        if self.showingFiveDay:
+        if self.showing_five_day:
             # turn off momentary five-day forecast display
-            timeNow = time.time()
-            duration = timeNow - self.fiveDayStart
-            if duration > self.myConfig.get()["formats"]["forecast_time"]:
-                self.showInfo()
+            time_now = time.time()
+            duration = time_now - self.five_day_start
+            if duration > self.my_config.get()["formats"]["forecast_time"]:
+                self.show_info()
         return
 
 
@@ -731,16 +736,16 @@ class InfoWidget(BoxLayout):
 
 
 class RPiClockWidget(Widget):
-    def __init__(self, myConfig, weatherMonitor):
+    def __init__(self, my_config, weather_monitor):
         super(RPiClockWidget, self).__init__()
-        timeWidget = TimeWidget(myConfig, size_hint=(1, .8))
-        timeWidget.size_hint_y = .8
-        infoWidget = InfoWidget(myConfig, weatherMonitor)
-        infoWidget.size_hint_y = .2
-        vertLayout = BoxLayout(orientation='vertical', size=Window.size)
-        vertLayout.add_widget(timeWidget)
-        vertLayout.add_widget(infoWidget)
-        self.add_widget(vertLayout)
+        time_widget = TimeWidget(my_config, size_hint=(1, .8))
+        time_widget.size_hint_y = .8
+        info_widget = InfoWidget(my_config, weather_monitor)
+        info_widget.size_hint_y = .2
+        vert_layout = BoxLayout(orientation='vertical', size=Window.size)
+        vert_layout.add_widget(time_widget)
+        vert_layout.add_widget(info_widget)
+        self.add_widget(vert_layout)
         return
 
 
@@ -748,21 +753,22 @@ class RPiClockWidget(Widget):
 
 
 class RPiClockApp(App):
-    def __init__(self, args, myConfig):
+    def __init__(self, args, my_config):
         super(RPiClockApp, self).__init__()
-        self.myConfig = myConfig
-        Window.size = myConfig.get()["formats"]["window_size"]
+        self.myConfig = my_config
+        Window.size = my_config.get()["formats"]["window_size"]
         Window.bind(on_request_close=self.on_request_close)
-        if myConfig.get()["weather"]["api"] == "owm":
-            self.weatherMonitor = OWMWeatherMonitor(args, myConfig)
+        if my_config.get()["weather"]["api"] == "owm":
+            self.weatherMonitor = OWMWeatherMonitor(args, my_config)
             self.weatherMonitor.start()
-        elif myConfig.get()["weather"]["api"] == "bom":
-            self.weatherMonitor = BOMWeatherMonitor(args, myConfig)
+        elif my_config.get()["weather"]["api"] == "bom":
+            self.weatherMonitor = BOMWeatherMonitor(args, my_config)
             self.weatherMonitor.start()
-        self.brightnesssMonitor = BrightnessMonitor(args, myConfig)
+        self.brightnesssMonitor = BrightnessMonitor(args, my_config)
         self.brightnesssMonitor.start()
         return
 
+    # noinspection PyMethodMayBeStatic
     def on_request_close(self, *args):
         _ = args
         global gRunning
@@ -771,14 +777,14 @@ class RPiClockApp(App):
         sys.exit()  # brute force will do it
 
     def build(self):
-        clockWidget = RPiClockWidget(self.myConfig, self.weatherMonitor)
-        return clockWidget
+        clock_widget = RPiClockWidget(self.myConfig, self.weatherMonitor)
+        return clock_widget
 
 
 # =============================================================================
 
 
-def argParser():
+def arg_parser():
     """
     parse arguments
     :return: the parsed arguments
@@ -795,12 +801,12 @@ def argParser():
 
 
 def main():
-    args = argParser()
-    Log(args, "rpiclock start")
+    args = arg_parser()
+    log(args, "rpiclock start")
     config = Config()
-    clockApp = RPiClockApp(args, config)
-    clockApp.run()
-    Log(args, "rpiclock end")
+    clock_app = RPiClockApp(args, config)
+    clock_app.run()
+    log(args, "rpiclock end")
     return
 
 
