@@ -3,7 +3,7 @@ Description=rpiclock
 After=network.target
 
 [Service]
-ExecStart=/usr/bin/python -u rpiclock.py
+ExecStart=/home/pi/rpiclock/.venv/bin/python -u rpiclock.py
 WorkingDirectory=/home/pi/project/rpiclock
 StandardOutput=inherit
 StandardError=inherit
