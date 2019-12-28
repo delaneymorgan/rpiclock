@@ -22,23 +22,22 @@ sys.argv = argvCopy
 
 import calendar
 import dateutil.parser
+import io
 import json
 import os
 import platform
 import pyowm
 import requests
-import string
 import sys
 import time
 import threading
 import untangle
 from ftplib import FTP
-import StringIO
 
 # =============================================================================
 
 
-__version__ = "0.0.1"
+__version__ = "20191228-1"
 DEGREE_SIGN = u"\u00b0"
 CONFIG_FILENAME = "config.ini"
 OWM_ICONS_DIR = "owm_icons"
@@ -57,6 +56,7 @@ BLANK_IMAGE = "blank.png"
 
 gRunning = True
 
+
 # =============================================================================
 
 
@@ -69,9 +69,9 @@ def is_rpi():
 # =============================================================================
 
 
-def log(args, string):
+def log(args, text):
     if args.verbose:
-        print(string)
+        print(text)
     return
 
 
@@ -85,7 +85,9 @@ def suffix_num(num):
     :param num: the number to be suffixed
     :return: the suffixed number
     """
+
     def func(n): return repr(n) + 'tsnrhtdd'[n % 5 * (n % 100 ^ 15 > 4 > n % 10)::4]
+
     suffixed_num = func(num)
     return suffixed_num
 
@@ -136,8 +138,8 @@ class BrightnessMonitor(threading.Thread):
     """
     controls display brightness, depending on time of day
     """
-    kMaxBrightness = 255        # display's max raw brightness value
-    kMinBrightness = 0          # display's min raw brightness value
+    kMaxBrightness = 255    # display's max raw brightness value
+    kMinBrightness = 0      # display's min raw brightness value
 
     def __init__(self, args, my_config):
         super(BrightnessMonitor, self).__init__()
@@ -202,6 +204,7 @@ class WeatherMonitor(threading.Thread):
     """
     base abstract class for monitoring weather
     """
+
     def __init__(self, args, my_config):
         super(WeatherMonitor, self).__init__()
         self.args = args
@@ -258,6 +261,7 @@ class OWMWeatherMonitor(WeatherMonitor):
     """
     class for monitoring weather via Open Weather Map API
     """
+
     def __init__(self, args, my_config):
         super(OWMWeatherMonitor, self).__init__(args, my_config)
         try:
@@ -410,7 +414,7 @@ class BOMWeatherMonitor(WeatherMonitor):
             ftp.login()
             fc_path = self.my_config.get()["bom_weather"]["forecast_path"] % \
                       self.my_config.get()["bom_weather"]["forecast_place"]
-            out_str = StringIO.StringIO()  # Use a string like a file.
+            out_str = io.StringIO()  # Use a string like a file.
             ftp.retrlines('RETR ' + fc_path, out_str.write)
             elements = untangle.parse(out_str.getvalue())
             out_str.close()
@@ -478,7 +482,7 @@ class TimeWidget(Button):
         local_time = time.localtime(time_now)
         time_format = self.my_config.get()["formats"]["time"]
         if blank_colon:
-            time_format = string.replace(time_format, ":", " ")
+            time_format = time_format.replace(":", " ")
         time_str = time.strftime(time_format, local_time)
         if time_str != self.lastTime:
             # only update on change (save some CPU maybe?)

@@ -2,6 +2,7 @@
 .pyc
 .py~
 .idea
+.venv
 *#
 *.py~
 *.pyc
