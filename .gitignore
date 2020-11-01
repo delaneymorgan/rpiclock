@@ -1,8 +1,8 @@
 .DS_Store
 .pyc
 .py~
-.idea
-.venv
+.idea/
+.venv/
 *#
 *.py~
 *.pyc

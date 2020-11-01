@@ -21,6 +21,7 @@ from kivy.core.window import Window
 sys.argv = argvCopy
 
 import calendar
+import datetime
 import dateutil.parser
 import io
 import json
@@ -28,6 +29,7 @@ import os
 import platform
 import pyowm
 import requests
+import signal
 import sys
 import time
 import threading
@@ -38,6 +40,7 @@ from ftplib import FTP
 
 
 __version__ = "20191228-1"
+SECONDS_IN_DAY = (24 * 60 * 60)
 DEGREE_SIGN = u"\u00b0"
 CONFIG_FILENAME = "config.ini"
 OWM_ICONS_DIR = "owm_icons"
@@ -54,7 +57,25 @@ MEMBERS_BOM_WEATHER = dict(forecast_path='string', forecast_place='string', ftp_
 MEMBERS_OWM_WEATHER = dict(api_key='string', place='string', temperature_scale='string')
 BLANK_IMAGE = "blank.png"
 
-gRunning = True
+g_running_flag = True
+
+
+# =============================================================================
+
+
+def signal_handler(raised_signal, frame):
+    """
+    handle SIGINT or other "quit" signals
+    :param raised_signal: the raised signal
+    :param frame: ???
+    :return: Nothing
+    """
+    global g_running_flag
+    _ = frame
+    if raised_signal == signal.SIGINT:
+        g_running_flag = False
+        sys.exit(0)
+    return
 
 
 # =============================================================================
@@ -138,8 +159,8 @@ class BrightnessMonitor(threading.Thread):
     """
     controls display brightness, depending on time of day
     """
-    kMaxBrightness = 255    # display's max raw brightness value
-    kMinBrightness = 0      # display's min raw brightness value
+    kMaxBrightness = 255  # display's max raw brightness value
+    kMinBrightness = 0  # display's min raw brightness value
 
     def __init__(self, args, my_config):
         super(BrightnessMonitor, self).__init__()
@@ -183,15 +204,17 @@ class BrightnessMonitor(threading.Thread):
             brightness = self.my_config.get()["brightness"]["high"]
         else:
             brightness = self.my_config.get()["brightness"]["low"]
-        log(self.args, "Setting brightness: %3.1f%%" % brightness)
+        # log(self.args, "Setting brightness: %3.1f%%" % brightness)
         # convert brightness % to raw brightness setting
         real_brightness = (brightness / 100.0) * (self.kMaxBrightness - self.kMinBrightness) + self.kMinBrightness
         self.set_backlight(real_brightness)
         return
 
     def run(self):
-        while gRunning:
+        global g_running_flag
+        while g_running_flag:
             self.check_brightness()
+            log(self.args, "%s running" % self.__class__.__name__)
             time.sleep(1)  # I'd sleep for more, but it holds up quit
         return
 
@@ -213,11 +236,11 @@ class WeatherMonitor(threading.Thread):
         self.last_check = 0
         self._weather_lock = threading.Lock()
         self._weather = dict(
-            tempNow=None,   # current temperature in Celcius
-            tempMin=None,   # forecast minimum temperature in Celcius
-            tempMax=None,   # forecast maximum temperature in Celcius
+            tempNow=None,  # current temperature in Celcius
+            tempMin=None,  # forecast minimum temperature in Celcius
+            tempMax=None,  # forecast maximum temperature in Celcius
             iconName=None,  # current weather icon
-            forecast=[]     # the five-day forecast
+            forecast=[]  # the five-day forecast
         )
         return
 
@@ -239,7 +262,9 @@ class WeatherMonitor(threading.Thread):
         raise NotImplementedError()
 
     def run(self):
-        while gRunning:
+        global g_running_flag
+        while g_running_flag:
+            log(self.args, "%s running" % self.__class__.__name__)
             time_now = time.time()
             wait_remaining = self.my_config.get()["weather"]["check_interval"] - (time_now - self.last_check)
             if wait_remaining < 0:
@@ -248,7 +273,7 @@ class WeatherMonitor(threading.Thread):
                 self.do_observation()
                 self.do_forecast()
             else:
-                log(self.args, "secs until next weather poll: %0.1f secs" % wait_remaining)
+                # log(self.args, "secs until next weather poll: %0.1f secs" % wait_remaining)
                 time.sleep(1)  # I'd sleep for more, but it holds up quit
         return
 
@@ -281,7 +306,7 @@ class OWMWeatherMonitor(WeatherMonitor):
                 self._weather["tempNow"] = obs_weather.get_temperature(scale)['temp']
                 self._weather["iconName"] = obs_weather.get_weather_icon_name()
         except Exception as e:
-            print("OWMWeatherMonitor.doObservation() Error: %s/%s" % (type(e), str(e)))
+            print("OWMWeatherMonitor.do_observation() Error: %s/%s" % (type(e), str(e)))
         return
 
     def icon_path(self, icon_name=None):
@@ -295,9 +320,42 @@ class OWMWeatherMonitor(WeatherMonitor):
 
     def do_forecast(self):
         log(self.args, "retrieving forecast")
-        with self._weather_lock:
-            # TODO: get an API key with forecast rights and do this
-            pass
+        dt_now = datetime.datetime.now()
+        dt_now = dt_now.replace(hour=12, minute=0, second=0)
+        if True:
+            # try:
+            fc_3h = self.service.three_hours_forecast(self.my_config.get()["owm_weather"]["place"]).get_forecast()
+            days = [dict(iconName="", tempMax=None, tempMin=None, timestamp=0, weatherCodes={})] * 8
+            for fc_slice in fc_3h:
+                time_from = fc_slice.get_reference_time()
+                dt = datetime.datetime.utcfromtimestamp(time_from)
+                dt = dt.replace(hour=12, minute=0, second=0)
+                day_no = int((dt.timestamp() - dt_now.timestamp()) / SECONDS_IN_DAY)
+                this_day = days[day_no]
+                temp = fc_slice.get_temperature(unit="celsius")
+                this_day["timestamp"] = dt.timestamp()
+                if "temp_max" in temp:
+                    # if (this_day["tempMax"] is None) or (temp["temp_max"] > this_day["tempMax"]):
+                    #    this_day["tempMax"] = temp["temp_max"]
+                    if this_day["tempMax"] is None:
+                        this_day["tempMax"] = temp["temp_max"]
+                    if temp["temp_max"] > this_day["tempMax"]:
+                        this_day["tempMax"] = temp["temp_max"]
+                if ("temp_min" in temp) and ((this_day["tempMin"] is None) or (temp["temp_min"] < this_day["tempMin"])):
+                    this_day["tempMin"] = temp["temp_min"]
+                icon_name = fc_slice.get_weather_icon_name()  # build weather code histogram for this day
+                if icon_name not in this_day["weatherCodes"]:
+                    this_day["weatherCodes"][icon_name] = 0
+                this_day["weatherCodes"][icon_name] += 1
+        #     for day in days:
+        #         # TODO: get highest rating icon_name for iconName
+        #         pass
+        #     pass
+        # # except Exception as e:
+        # # print("OWMWeatherMonitor.do_forecast() Error: %s/%s" % (type(e), str(e)))
+        # with self._weather_lock:
+        #     # TODO: get an API key with forecast rights and do this
+        #     pass
         return
 
 
@@ -359,7 +417,7 @@ class BOMWeatherMonitor(WeatherMonitor):
             else:
                 log(self.args, "No observations retrieved")
         except Exception as e:
-            print("BOMWeatherMonitor.doObservation() Error: %s/%s" % (type(e), str(e)))
+            print("BOMWeatherMonitor.do_observation() Error: %s/%s" % (type(e), str(e)))
         return
 
     def icon_path(self, icon_name=None):
@@ -410,10 +468,10 @@ class BOMWeatherMonitor(WeatherMonitor):
     def do_forecast(self):
         log(self.args, "retrieving forecast")
         try:
-            ftp = FTP(self.my_config.get()["bom_weather"]["ftp_host"])
+            weather_config = self.my_config.get()["bom_weather"]
+            ftp = FTP(weather_config["ftp_host"])
             ftp.login()
-            fc_path = self.my_config.get()["bom_weather"]["forecast_path"] % \
-                      self.my_config.get()["bom_weather"]["forecast_place"]
+            fc_path = weather_config["forecast_path"] % weather_config["forecast_place"]
             out_str = io.StringIO()  # Use a string like a file.
             ftp.retrlines('RETR ' + fc_path, out_str.write)
             elements = untangle.parse(out_str.getvalue())
@@ -431,10 +489,11 @@ class BOMWeatherMonitor(WeatherMonitor):
             for dayForecast in periods_forecast:
                 day_elements = dayForecast.element
                 info = self.decode_elements(day_elements, dayForecast["start-time-local"])
+                log(self.args, "forecast part: %s" % info)
                 with self._weather_lock:
                     self._weather["forecast"].append(info)
         except Exception as e:
-            print("BOMWeatherMonitor.doForecast() Error: %s/%s" % (type(e), str(e)))
+            print("BOMWeatherMonitor.do_forecast() Error: %s/%s" % (type(e), str(e)))
         return
 
 
@@ -462,9 +521,8 @@ class TimeWidget(Button):
     # noinspection PyMethodMayBeStatic
     def on_request_close(self, *args):
         _ = args
-        global gRunning
-        gRunning = False
-        # return False		# TODO: this should be enough to end things, but doesn't work
+        global g_running_flag
+        g_running_flag = False
         sys.exit()  # brute force will do it
         return
 
@@ -775,9 +833,8 @@ class RPiClockApp(App):
     # noinspection PyMethodMayBeStatic
     def on_request_close(self, *args):
         _ = args
-        global gRunning
-        gRunning = False
-        # return False		# TODO: this should be enough to end things, but doesn't work
+        global g_running_flag
+        g_running_flag = False
         sys.exit()  # brute force will do it
 
     def build(self):
@@ -807,6 +864,7 @@ def arg_parser():
 def main():
     args = arg_parser()
     log(args, "rpiclock start")
+    signal.signal(signal.SIGINT, signal_handler)
     config = Config()
     clock_app = RPiClockApp(args, config)
     clock_app.run()
