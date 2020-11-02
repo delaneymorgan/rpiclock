@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 # coding=utf-8
 
 import sys
@@ -22,7 +22,7 @@ sys.argv = argvCopy
 
 import calendar
 import datetime
-import dateutil.parser
+from dateutil import parser as du_parser
 import io
 import json
 import os
@@ -168,6 +168,16 @@ class BrightnessMonitor(threading.Thread):
         self.my_config = my_config
         self.high_mod_start = self.tod_to_mod(self.my_config.get()["brightness"]["high_tom_start"])
         self.low_mod_start = self.tod_to_mod(self.my_config.get()["brightness"]["low_tom_start"])
+        self.backlight = None
+        if platform.machine() == "armv7l":
+            # noinspection PyBroadException
+            try:
+                # noinspection PyUnresolvedReferences
+                from rpi_backlight import Backlight
+                self.backlight = Backlight()
+            except Exception:
+                log(self.args, "backlight control not supported")
+                pass
         return
 
     @staticmethod
@@ -184,15 +194,16 @@ class BrightnessMonitor(threading.Thread):
     def set_backlight(self, raw_value):
         """
         set the display's backlight brightness
-        :param raw_value: 0-255
+        :param raw_value: 0-100
         :return:
         """
-        raw_value = abs(int(raw_value)) % 256  # limit to integers 0-255
-        if platform.machine() == "armv7l":
-            # noinspection PyUnresolvedReferences
-            import rpi_backlight as bl
-            bl.set_brightness(raw_value)
-            log(self.args, "set brightness: rawValue: %d" % raw_value)
+        raw_value = abs(int(raw_value)) % 100  # limit to integers 0-100
+        if self.backlight is not None:
+            try:
+                self.backlight.brightness = raw_value
+                log(self.args, "set brightness: rawValue: %d" % raw_value)
+            except PermissionError:
+                log(self.args, "backlight control requires superuser mode")
         return
 
     def check_brightness(self):
@@ -460,7 +471,7 @@ class BOMWeatherMonitor(WeatherMonitor):
                     log(self.args, "tempMin: %s" % thisElement.cdata)
                     info["tempMin"] = float(thisElement.cdata)
         if timestamp:
-            d = dateutil.parser.parse(timestamp)
+            d = du_parser.parse(timestamp)
             this_time = time.mktime(d.timetuple()) + d.microsecond / 1E6
             info["timestamp"] = this_time
         return info

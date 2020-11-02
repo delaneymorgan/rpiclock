@@ -1,8 +1,7 @@
 argparse
 configparser
-python-dateutil==latest
-ftplib
-Kivy==latest
-pyowm==latest
+Kivy
+pyowm
 requests
-untangle==latest
+untangle
+rpi_backlight
