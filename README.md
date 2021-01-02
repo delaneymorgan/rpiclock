@@ -8,7 +8,7 @@ It should run on a standard Linux desktop - without the backlight control of cou
 If you're reading this, chances are you already have some access to it.
 
 &nbsp;&nbsp;&nbsp;&nbsp;`cd ~/<project-dir>/`  
-&nbsp;&nbsp;&nbsp;&nbsp;`git clone --recursive https://<github-user>@github.com/delaneymorgan/rpiclock.git`
+&nbsp;&nbsp;&nbsp;&nbsp;`git clone --recursive https://github.com/delaneymorgan/rpiclock.git`
 
 If you absolutely need python 2 (but I don't recommend it unless you're running Raspbian pre-Buster), look for the "Python_2.7_Compatible" tag.
 
