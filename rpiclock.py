@@ -28,6 +28,7 @@ import json
 import os
 import platform
 import pyowm
+import re
 import requests
 import signal
 import sys
@@ -406,6 +407,7 @@ class BOMWeatherMonitor(WeatherMonitor):
     def __init__(self, args, my_config):
         super(BOMWeatherMonitor, self).__init__(args, my_config)
         self.do_observation()
+        self.digit_filter = re.compile(r'[^\d]+')
         return
 
     def do_observation(self):
@@ -434,11 +436,18 @@ class BOMWeatherMonitor(WeatherMonitor):
     def icon_path(self, icon_name=None):
         image_path = None
         with self._weather_lock:
-            if self._weather["iconName"] is not None:
-                if icon_name is None:
-                    icon_name = self._weather["iconName"]
-                icon_name = self.kBOMIcons[icon_name]
-                image_path = os.path.join(BOM_ICONS_DIR, icon_name + ".png")
+            try:
+                if self._weather["iconName"] is not None:
+                    if icon_name is None:
+                        icon_name = self._weather["iconName"]
+                        # BoM occasionally slips in a decimal point, so get rid of anything that's not a digit
+                        icon_name = self.digit_filter.sub('', icon_name)
+                    icon_name = self.kBOMIcons[icon_name]
+                    image_path = os.path.join(BOM_ICONS_DIR, icon_name + ".png")
+            except KeyError:
+                # BoM has put a crap icon number in their data - ignore it
+                log(self.args, "invalid icon name: %s" % self._weather["iconName"])
+                pass
         return image_path
 
     def add_lines(self, lines):
