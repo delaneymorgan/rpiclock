@@ -887,6 +887,8 @@ def main():
     signal.signal(signal.SIGINT, signal_handler)
     config = Config()
     clock_app = RPiClockApp(args, config)
+    if is_rpi():
+        Window.fullscreen = True
     clock_app.run()
     log(args, "rpiclock end")
     return
