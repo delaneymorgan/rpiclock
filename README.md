@@ -1,5 +1,5 @@
 # rpiclock
-This repository contains the rpiclock application designed to run on a Raspberry Pi 2/3 running Bullseye with the 7" touchscreen under Python 3.x.
+This repository contains the rpiclock application designed to run on a Raspberry Pi 4 running Bullfrog with the 7" touchscreen under Python 3.11.
 
 It should run on a standard Linux desktop - without the backlight control of course.
 
@@ -11,9 +11,6 @@ If you're reading this, chances are you already have some access to it.
     git clone --recursive https://github.com/delaneymorgan/rpiclock.git
 
 If you absolutely need python 2 (but I don't recommend it unless you're running Raspbian pre-Buster), look for the "Python_2.7_Compatible" tag.
-
-### Buster:
-
 
 ### Virtual Environment:
 
@@ -102,22 +99,11 @@ A systemd service is provided for use with Raspbian.  Assuming you have installe
     sudo reboot
 
 ---
-### Packages required:
-* cython - needed by kivy
-* freeglut3-dev - needed by kivy
-
----
 ### Modules required:
-  * argparse - for command line arguments
-  * configparser - .ini file parsing module
-  * kivy - there's a specific RPi version
-  * pyowm - open weather map support (you will need your own API Key)
-  * rpi_backlight - for managing brightness on the RPi's touchscreen
-  * untangle - xml parser for pulling apart BoM readings
-
+See requirements.txt
 
     source ~/project/rpiclock/.venv/bin/activate
-    pip3 install argparse configparser kivy pyowm rpi_backlight untangle
+    pip3 install argparse configparser kivy pyowm python-dateutil rpi_backlight untangle
 
 ---
 ### Usage:

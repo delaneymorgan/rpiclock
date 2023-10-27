@@ -1,5 +1,6 @@
 argparse
 configparser
+python-dateutil
 Kivy
 pyowm
 requests
