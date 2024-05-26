@@ -35,7 +35,7 @@ Follow link for the definitive [RPi 7" touchscreen instructions](https://www.ele
 
 If you've mounted the display in one of its many cases, you might find the display upside-down with respect to the case.
 Fret not.
-Raspbian Bullseye now manages this with its GUI.
+Raspbian Bullseye/Bullfrog now manages this with its GUI.
 
 Select:
 * Preferences
@@ -49,6 +49,12 @@ This should invert not just the display,
 but importantly also the touch-screen coordinates.
 
 #### Hide Cursor
+
+First you'll need to discover which windowing system your system is using:
+
+    echo $XDG_SESSION_TYPE
+
+##### For X11
 
     sudo apt update
     sudo apt install unclutter
@@ -64,6 +70,32 @@ Add the following line:
 
 This will permanently hide the cursor whenever it is stationary.
 
+##### For Wayland
+
+For Wayland you'll need to build a plugin to hide the cursor.
+
+    sudo apt install -y interception-tools interception-tools-compat
+    sudo apt install -y cmake
+    cd ~
+    git clone https://gitlab.com/interception/linux/plugins/hideaway.git
+    cd hideaway
+    cmake -B build -DCMAKE_BUILD_TYPE=Release
+    cmake --build build
+    sudo cp /home/user/hideaway/build/hideaway /usr/bin
+    sudo chmod +x /usr/bin/hideaway
+
+Next you'll need to configure Wayland to use the plugin.  Create the config as config.yaml and enter the following:
+
+    - JOB: intercept $DEVNODE | hideaway 4 10000 10000 -512 -256 | uinput -d $DEVNODE
+      DEVICE:
+        EVENTS:
+          EV_REL: [REL_X, REL_Y]
+
+Now copy the config to the following directory:
+
+    sudo cp /home/$USER/config.yaml /etc/interception/udevmon.d/config.yaml
+    sudo systemctl restart udevmon
+
 #### Disable Screen Saver
 
 Fortunately Bullseye also provides a simple GUI to manage the screen saver/blanking.
@@ -72,6 +104,22 @@ Fortunately Bullseye also provides a simple GUI to manage the screen saver/blank
   * Raspberry Pi Configuration
     * Select the Display tab
       * Disable Screen Blanking
+
+#### Hide Taskbar
+For this to work, you may need to first run:
+
+	sudo rpi-update	
+
+This is not to be taken lightly.
+Check elsewhere for how to do this safely.
+
+Then, in file .config/wf-panel-pi.ini ADD the following:
+
+	autohide=true
+	autohide_duration=500
+
+Reboot and the program should now run without a visible taskbar,
+and more importantly will use correct drawing coordinates.
 
 ---
 ### 7 Segment Font:
