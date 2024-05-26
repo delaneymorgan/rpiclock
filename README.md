@@ -81,7 +81,7 @@ For Wayland you'll need to build a plugin to hide the cursor.
     cd hideaway
     cmake -B build -DCMAKE_BUILD_TYPE=Release
     cmake --build build
-    sudo cp /home/user/hideaway/build/hideaway /usr/bin
+    sudo cp /home/<user>/hideaway/build/hideaway /usr/bin
     sudo chmod +x /usr/bin/hideaway
 
 Next you'll need to configure Wayland to use the plugin.  Create the config as config.yaml and enter the following:
@@ -131,11 +131,27 @@ Install any font by copying it to the RPi's font directory.
     sudo cp <fontname> /usr/share/fonts
 
 Note that the blinking colon effect works best with a fixed-width font.
-The 7-segment font works nicely.
+The Classic 7-segment font works nicely.
 
-NOTE: Under Ubuntu 14, kivy doesn't find the custom font in the usual locations where the system installs them.
-Try placing the font in the same folder as the rpiclock app.
-Also, you will _definitely_ need the python 2 version of rpiclock.
+---
+### Kivy Touch Support:
+The configuration for Kivy, Wayland, and touch screen support isn't widely known AFAIK.  However, this procedure worked for me.  Run the application as a user for now.
+
+    cd ~/<project-dir>/rpiclock
+    source .venv/bin/activate
+    ./rpiclock.py
+
+Now use the mouse to click (or finger to touch) on the main time area.  This should exit the application.  You should find a default Kivy configuration in ~/.kivy/config.ini
+
+Now edit this file and replace the input section with:
+
+    [input]
+    mouse = mouse
+    hid_%(name)s = probesysfs,provider=hidinput
+
+Remember this config only applies to the current user.  If you want to autostart rpiclock, or support the backlight you'll need to supply the same config for the root user.
+
+    sudo cp ~/.kivy/config.ini /home/root/.kivy
 
 ---
 ### Auto-Start:
