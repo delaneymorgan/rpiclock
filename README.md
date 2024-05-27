@@ -1,5 +1,5 @@
 # rpiclock
-This repository contains the rpiclock application designed to run on a Raspberry Pi 2/3 with the 7" touchscreen under Python 3.x.
+This repository contains the rpiclock application designed to run on a Raspberry Pi 4 running Bullfrog with the 7" touchscreen under Python 3.11.
 
 It should run on a standard Linux desktop - without the backlight control of course.
 
@@ -7,22 +7,21 @@ It should run on a standard Linux desktop - without the backlight control of cou
 ### Obtain repository:
 If you're reading this, chances are you already have some access to it.
 
-&nbsp;&nbsp;&nbsp;&nbsp;`cd ~/<project-dir>/`  
-&nbsp;&nbsp;&nbsp;&nbsp;`git clone --recursive https://github.com/delaneymorgan/rpiclock.git`
+    cd ~/<project-dir>/
+    git clone --recursive https://github.com/delaneymorgan/rpiclock.git
 
 If you absolutely need python 2 (but I don't recommend it unless you're running Raspbian pre-Buster), look for the "Python_2.7_Compatible" tag.
-
 
 ### Virtual Environment:
 
 rpiclock runs under a virtual environment.  It isn't dockerised because AFAIK Kivy and the backlight module defies that.
 
-&nbsp;&nbsp;&nbsp;&nbsp;`cd ~/project/rpiclock`
-&nbsp;&nbsp;&nbsp;&nbsp;`python3 -m venv .venv`
+    cd ~/project/rpiclock
+    python3 -m venv .venv
 
 If the .venv/bin/activate script doesn't appear, just do...
 
-&nbsp;&nbsp;&nbsp;&nbsp;`python3 -m venv .venv`
+    python3 -m venv .venv
 
 ...again.
 
@@ -30,98 +29,145 @@ There is a requirements.txt, but I've found it rarely works.  Try it, otherwise 
 
 ---
 ### 7" Touchscreen Setup:
-Follow link for the definitive RPi 7" Touchscreen instructions.
-
-&nbsp;&nbsp;&nbsp;&nbsp;`https://www.element14.com/community/docs/DOC-78156/l/raspberry-pi-7-touchscreen-display`
+Follow link for the definitive [RPi 7" touchscreen instructions](https://www.element14.com/community/docs/DOC-78156/l/raspberry-pi-7-touchscreen-display)
 
 #### Screen Orientation
 
-If you've mounted the display in one of its many cases, you might find the display upside-down with respect to the case.  Fret not.  You'll need to modify /boot/config.txt.
+If you've mounted the display in one of its many cases, you might find the display upside-down with respect to the case.
+Fret not.
+Raspbian Bullseye/Bullfrog now manages this with its GUI.
 
-&nbsp;&nbsp;&nbsp;&nbsp;`sudo vim /boot/config.txt`  
+Select:
+* Preferences
+  * Screen Configuration
+    * You'll see the 7" display as an icon labelled "DSI-1"
+    * Right-click the display icon
+      * Select Orientation -> inverted
+    * Press Apply
+
+This should invert not just the display,
+but importantly also the touch-screen coordinates.
+
+#### Hide Cursor
+
+First you'll need to discover which windowing system your system is using:
+
+    echo $XDG_SESSION_TYPE
+
+##### For X11
+
+    sudo apt update
+    sudo apt install unclutter
+
+Then you'll need to edit the following:
+
+    cd /etc/xdg/lxsession/LXDE-pi
+    sudo vim autostart
 
 Add the following line:
 
-&nbsp;&nbsp;&nbsp;&nbsp;`lcd_rotate=2`  
+    unclutter -ide 0
 
-Save and reboot.
+This will permanently hide the cursor whenever it is stationary.
 
-#### Touch Events
+##### For Wayland
 
-Next you need to configure kivy to recognise touch events:
+For Wayland you'll need to build a plugin to hide the cursor.
 
-In ~/.kivy, edit config.ini and look for the input section.  Change it to:
+    sudo apt install -y interception-tools interception-tools-compat
+    sudo apt install -y cmake
+    cd ~
+    git clone https://gitlab.com/interception/linux/plugins/hideaway.git
+    cd hideaway
+    cmake -B build -DCMAKE_BUILD_TYPE=Release
+    cmake --build build
+    sudo cp /home/<user>/hideaway/build/hideaway /usr/bin
+    sudo chmod +x /usr/bin/hideaway
 
-&nbsp;&nbsp;&nbsp;&nbsp;`mouse = mouse`  
-&nbsp;&nbsp;&nbsp;&nbsp;`mtdev_%(name)s = probesysfs,provider=mtdev`  
-&nbsp;&nbsp;&nbsp;&nbsp;`hid_%(name)s = probesysfs,provider=hidinput`  
+Next you'll need to configure Wayland to use the plugin.  Create the config as config.yaml and enter the following:
 
-See:
+    - JOB: intercept $DEVNODE | hideaway 4 10000 10000 -512 -256 | uinput -d $DEVNODE
+      DEVICE:
+        EVENTS:
+          EV_REL: [REL_X, REL_Y]
 
-&nbsp;&nbsp;&nbsp;&nbsp;`https://kivy.org/docs/installation/installation-rpi.html`
+Now copy the config to the following directory:
 
-However, this only works for the current user.  If you run rpiclock as root, which you will if you auto-start or use the brightness control, you'll need to copy the working config to the root user's directory:
-
-&nbsp;&nbsp;&nbsp;&nbsp;`cp -r ~/.kivy /root`  
+    sudo cp /home/$USER/config.yaml /etc/interception/udevmon.d/config.yaml
+    sudo systemctl restart udevmon
 
 #### Disable Screen Saver
 
-You will also need to disable Raspbian's screen saver.  In:
+Fortunately Bullseye also provides a simple GUI to manage the screen saver/blanking.
 
-&nbsp;&nbsp;&nbsp;&nbsp;`/etc/lightdm/lightdm.conf`
+* Preferences
+  * Raspberry Pi Configuration
+    * Select the Display tab
+      * Disable Screen Blanking
 
-add:
+#### Hide Taskbar
+For this to work, you may need to first run:
 
-&nbsp;&nbsp;&nbsp;&nbsp;`xserver-command=X -s 0 -dpms`
+	sudo rpi-update	
 
-Reboot.
+This is not to be taken lightly.
+Check elsewhere for how to do this safely.
+
+Then, in file .config/wf-panel-pi.ini ADD the following:
+
+	autohide=true
+	autohide_duration=500
+
+Reboot and the program should now run without a visible taskbar,
+and more importantly will use correct drawing coordinates.
 
 ---
 ### 7 Segment Font:
-You can get an old-school 7-segment font (anything else just looks weird, but you have fun you) for the time display from here:
-
-&nbsp;&nbsp;&nbsp;&nbsp;`https://www.keshikan.net/fonts-e.html`
+You can get an old-school 7-segment font
+(anything else just looks weird, but you have fun you) for the time display from [here](https://www.keshikan.net/fonts-e.html).
 
 Install any font by copying it to the RPi's font directory.
 
-&nbsp;&nbsp;&nbsp;&nbsp;`sudo cp <fontname> /usr/share/fonts`
+    sudo cp <fontname> /usr/share/fonts
 
-Note that the blinking colon effect works best with a fixed-width font.  The 7-segment font works nicely.
+Note that the blinking colon effect works best with a fixed-width font.
+The Classic 7-segment font works nicely.
 
-NOTE: Under Ubuntu 14, kivy doesn't find the custom font in the usual locations where the system installs them.  Try placing the font in the same folder as the rpiclock app.  Also, you will _definitely_ need the python 2 version of rpiclock.
+---
+### Kivy Touch Support:
+The configuration for Kivy, Wayland, and touch screen support isn't widely known AFAIK.  However, this procedure worked for me.  Run the application as a user for now.
+
+    cd ~/<project-dir>/rpiclock
+    source .venv/bin/activate
+    ./rpiclock.py
+
+Now use the mouse to click (or finger to touch) on the main time area.  This should exit the application.  You should find a default Kivy configuration in ~/.kivy/config.ini
+
+Now edit this file and replace the input section with:
+
+    [input]
+    mouse = mouse
+    hid_%(name)s = probesysfs,provider=hidinput
+
+Remember this config only applies to the current user.  If you want to autostart rpiclock, or support the backlight you'll need to supply the same config for the root user.
+
+    sudo cp ~/.kivy/config.ini /home/root/.kivy
 
 ---
 ### Auto-Start:
 A systemd service is provided for use with Raspbian.  Assuming you have installed rpiclock under /home/pi/project/rpiclock, this should run as is.  Modify as required.
 
-&nbsp;&nbsp;&nbsp;&nbsp;`cd /lib/systemd/system/`  
-&nbsp;&nbsp;&nbsp;&nbsp;`sudo ln -s ~/project/rpiclock/rpiclock.service rpiclock.service`  
-&nbsp;&nbsp;&nbsp;&nbsp;`sudo systemctl enable rpiclock.service`  
-&nbsp;&nbsp;&nbsp;&nbsp;`sudo reboot`
-
----
-### Packages required:
-* cython - needed by kivy
-* freeglut3-dev - needed by kivy
+    cd /lib/systemd/system/
+    sudo ln -s ~/project/rpiclock/rpiclock.service rpiclock.service
+    sudo systemctl enable rpiclock.service
+    sudo reboot
 
 ---
 ### Modules required:
-* argparse - for command line arguments
-* configparser - .ini file parsing module
-* kivy - there's a specific RPi version
-* pyowm - open weather map support (you will need your own API Key)
-* requests - for making url requests
-* rpi_backlight - for managing brightness on the RPi's touchscreen
-* untangle - xml parser for pulling apart BoM readings
+See requirements.txt
 
-&nbsp;&nbsp;&nbsp;&nbsp;`source ~/project/rpiclock/.venv/bin/activate`  
-&nbsp;&nbsp;&nbsp;&nbsp;`pip3 install argparse`  
-&nbsp;&nbsp;&nbsp;&nbsp;`pip3 install configparser`  
-&nbsp;&nbsp;&nbsp;&nbsp;`pip3 install kivy`  
-&nbsp;&nbsp;&nbsp;&nbsp;`pip3 install pyowm`  
-&nbsp;&nbsp;&nbsp;&nbsp;`pip3 install requests`  
-&nbsp;&nbsp;&nbsp;&nbsp;`pip3 install rpi_backlight`  
-&nbsp;&nbsp;&nbsp;&nbsp;`pip3 install untangle`  
+    source ~/project/rpiclock/.venv/bin/activate
+    pip3 install argparse configparser kivy pyowm python-dateutil rpi_backlight untangle
 
 ---
 ### Usage:

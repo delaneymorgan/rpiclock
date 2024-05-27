@@ -3,7 +3,7 @@
 
 import sys
 
-# this allows rpiclock to get command-line arguments after kivy has processed it's.
+# this allows rpiclock to get command-line arguments after kivy has processed its own.
 argvCopy = sys.argv
 sys.argv = sys.argv[:1]
 
@@ -311,7 +311,8 @@ class OWMWeatherMonitor(WeatherMonitor):
     def do_observation(self):
         log(self.args, "retrieving observation")
         try:
-            obs = self.service.weather_at_place(self.my_config.get()["owm_weather"]["place"])
+            mgr = self.service.weather_manager()
+            obs = mgr.weather_at_place(self.my_config.get()["owm_weather"]["place"])
             scale = self.my_config.get()["owm_weather"]["temperature_scale"]
             obs_weather = obs.get_weather()
             with self._weather_lock:
@@ -327,7 +328,7 @@ class OWMWeatherMonitor(WeatherMonitor):
             if icon_name is None:
                 icon_name = self._weather["iconName"]
             if icon_name is not None:
-                image_path = os.path.join(OWM_ICONS_DIR, self._weather["iconName"] + ".png")
+                image_path = os.path.join(OWM_ICONS_DIR, f"{self._weather['iconName']}.png")
             return image_path
 
     def do_forecast(self):
@@ -336,7 +337,8 @@ class OWMWeatherMonitor(WeatherMonitor):
         dt_now = dt_now.replace(hour=12, minute=0, second=0)
         if True:
             # try:
-            fc_3h = self.service.three_hours_forecast(self.my_config.get()["owm_weather"]["place"]).get_forecast()
+            mgr = self.service.weather_manager()
+            fc_3h = mgr.three_hours_forecast(self.my_config.get()["owm_weather"]["place"]).get_forecast()
             days = [dict(iconName="", tempMax=None, tempMin=None, timestamp=0, weatherCodes={})] * 8
             for fc_slice in fc_3h:
                 time_from = fc_slice.get_reference_time()
@@ -345,7 +347,7 @@ class OWMWeatherMonitor(WeatherMonitor):
                 day_no = int((dt.timestamp() - dt_now.timestamp()) / SECONDS_IN_DAY)
                 this_day = days[day_no]
                 temp = fc_slice.get_temperature(unit="celsius")
-                this_day["timestamp"] = dt.timestamp()
+                this_day["timestamp"] = int(dt.timestamp())
                 if "temp_max" in temp:
                     # if (this_day["tempMax"] is None) or (temp["temp_max"] > this_day["tempMax"]):
                     #    this_day["tempMax"] = temp["temp_max"]
@@ -858,6 +860,7 @@ class RPiClockApp(App):
         sys.exit()  # brute force will do it
 
     def build(self):
+        Window.borderless = True
         clock_widget = RPiClockWidget(self.myConfig, self.weatherMonitor)
         return clock_widget
 
