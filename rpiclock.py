@@ -40,7 +40,7 @@ from ftplib import FTP
 # =============================================================================
 
 
-__version__ = "20191228-1"
+__version__ = "20240915-1"
 SECONDS_IN_DAY = (24 * 60 * 60)
 DEGREE_SIGN = u"\u00b0"
 CONFIG_FILENAME = "config.ini"
@@ -170,7 +170,7 @@ class BrightnessMonitor(threading.Thread):
         self.high_mod_start = self.tod_to_mod(self.my_config.get()["brightness"]["high_tom_start"])
         self.low_mod_start = self.tod_to_mod(self.my_config.get()["brightness"]["low_tom_start"])
         self.backlight = None
-        if platform.machine() == "armv7l":
+        if platform.machine() in ["armv7l", "aarch64"]:
             # noinspection PyBroadException
             try:
                 # noinspection PyUnresolvedReferences
