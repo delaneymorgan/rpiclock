@@ -1,14 +1,21 @@
 [Unit]
 Description=rpiclock
-After=network.target
+After=graphical.target
 
 [Service]
-ExecStart=/home/pi/project/rpiclock/.venv/bin/python -u rpiclock.py
-WorkingDirectory=/home/pi/project/rpiclock
+User=admin
+Type=simple
+Environment="XDG_SESSION_TYPE=tty"
+Environment="XDG_SESSION_CLASS=user"
+Environment="XDG_SESSION_ID=4"
+Environment="XDG_RUNTIME_DIR=/run/user/1000"
+Environment="DISPLAY=:0"
+Environment="XAUTHORITY=/home/admin/.Xauthority"
+ExecStart=/home/admin/project/rpiclock/.venv/bin/python -u rpiclock.py
+WorkingDirectory=/home/admin/project/rpiclock
 StandardOutput=inherit
 StandardError=inherit
 Restart=always
-User=root
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=graphical.target
