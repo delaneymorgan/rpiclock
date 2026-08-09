@@ -158,8 +158,28 @@ def signal_handler(raised_signal, frame):
 
 
 def is_rpi():
-    machine = platform.machine().lower()
-    return machine in ["armv7l", "armv6l", "arm64", "aarch64"] or machine.startswith("arm")
+    """Return True only for actual Raspberry Pi hardware.
+
+    On Ubuntu ARM64 desktops, the machine type can still be "aarch64",
+    so we require a Raspberry Pi-specific device model or CPU info match.
+    """
+    model_paths = ["/proc/device-tree/model", "/sys/firmware/devicetree/base/model"]
+    for path in model_paths:
+        if os.path.exists(path):
+            try:
+                with open(path, "rb") as f:
+                    model = f.read().decode("utf-8", errors="ignore").lower()
+                return "raspberry pi" in model or "raspberry" in model
+            except OSError:
+                pass
+    if os.path.exists("/proc/cpuinfo"):
+        try:
+            with open("/proc/cpuinfo", "r", encoding="utf-8", errors="ignore") as f:
+                cpuinfo = f.read().lower()
+            return "raspberry pi" in cpuinfo or "bcm" in cpuinfo
+        except OSError:
+            pass
+    return False
 
 
 # =============================================================================
@@ -211,6 +231,8 @@ class Config:
         self.config["weather"] = self.load_section(settings, "weather", MEMBERS_WEATHER)
         self.config["bom_weather"] = self.load_section(settings, "bom_weather", MEMBERS_BOM_WEATHER)
         self.config["owm_weather"] = self.load_section(settings, "owm_weather", MEMBERS_OWM_WEATHER)
+        self.config["formats"]["large_font"] = self.resolve_font_path(self.config["formats"]["large_font"])
+        self.config["formats"]["small_font"] = self.resolve_font_path(self.config["formats"]["small_font"])
         return
 
     def parse_list(self, value):
@@ -232,6 +254,24 @@ class Config:
         for member in section_members:
             redis[member] = self.parse_config_entry(settings, section, member, section_members[member])
         return redis
+
+    def resolve_font_path(self, font_name):
+        if not font_name:
+            return None
+        if os.path.isabs(font_name) or os.path.dirname(font_name):
+            if os.path.exists(font_name):
+                return font_name
+            print("Font file %r not found. Falling back to the default font." % font_name)
+            return None
+        if os.path.exists(font_name):
+            return font_name
+        local_path = os.path.join(os.path.dirname(__file__), font_name)
+        if os.path.exists(local_path):
+            return local_path
+        if font_name.lower().endswith(('.ttf', '.otf', '.woff', '.woff2')):
+            print("Font file %r not found. Falling back to the default font." % font_name)
+            return None
+        return font_name
 
     def get(self):
         return self.config
@@ -595,7 +635,6 @@ class BOMWeatherMonitor(WeatherMonitor):
             weather_config = self.my_config.get()["bom_weather"]
             ftp = FTP(weather_config["ftp_host"], timeout=10)
             ftp.login()
-            ftp.set_timeout(10)
             fc_path = weather_config["forecast_path"] % weather_config["forecast_place"]
             out_str = io.StringIO()  # Use a string like a file.
             ftp.retrlines('RETR ' + fc_path, out_str.write)

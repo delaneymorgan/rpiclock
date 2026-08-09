@@ -27,6 +27,16 @@ If the .venv/bin/activate script doesn't appear, just do...
 
 There is a requirements.txt, but I've found it rarely works.  Try it, otherwise install the packages manually.
 
+If you are installing Kivy from pip on Linux, you may also need system OpenGL development headers before the build can complete. On Debian/Ubuntu this is usually:
+
+    sudo apt install libgl1-mesa-dev libgles2-mesa-dev libglu1-mesa-dev
+
+If you prefer a system-installed Kivy package on Ubuntu/Raspberry Pi OS, you can also install:
+
+    sudo apt install python3-kivy
+
+Then install the Python dependencies inside the virtual environment.
+
 ---
 ### 7" Touchscreen Setup:
 Follow link for the definitive [RPi 7" touchscreen instructions](https://www.element14.com/community/docs/DOC-78156/l/raspberry-pi-7-touchscreen-display)
