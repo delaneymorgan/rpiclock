@@ -6,5 +6,7 @@
 *#
 *.py~
 *.pyc
+build/
+dist/
 *.gz
 

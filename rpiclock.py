@@ -91,6 +91,27 @@ import json
 import os
 import platform
 
+
+def resource_path(path):
+    if os.path.isabs(path):
+        return path
+    if os.path.exists(path):
+        return path
+    meipass = getattr(sys, '_MEIPASS', None)
+    if meipass:
+        candidate = os.path.join(meipass, path)
+        if os.path.exists(candidate):
+            return candidate
+    bundle_dir = os.path.dirname(os.path.abspath(sys.argv[0]))
+    candidate = os.path.join(bundle_dir, path)
+    if os.path.exists(candidate):
+        return candidate
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    candidate = os.path.join(script_dir, path)
+    if os.path.exists(candidate):
+        return candidate
+    return path
+
 try:
     import pyowm
 except ImportError:  # pragma: no cover - optional dependency
@@ -118,9 +139,9 @@ from ftplib import FTP
 __version__ = "20240915-1"
 SECONDS_IN_DAY = (24 * 60 * 60)
 DEGREE_SIGN = u"\u00b0"
-CONFIG_FILENAME = "config.ini"
-OWM_ICONS_DIR = "owm_icons"
-BOM_ICONS_DIR = "bom_icons"
+CONFIG_FILENAME = resource_path("config.ini")
+OWM_ICONS_DIR = resource_path("owm_icons")
+BOM_ICONS_DIR = resource_path("bom_icons")
 
 MEMBERS_FORMATS = dict(blink_colon="bool", blink_rate="integer", date='string', date_dom_suffix='bool',
                        display='string', forecast_time="integer", large_font="string", large_font_size="integer",
@@ -263,11 +284,11 @@ class Config:
                 return font_name
             print("Font file %r not found. Falling back to the default font." % font_name)
             return None
+        resolved = resource_path(font_name)
+        if resolved != font_name and os.path.exists(resolved):
+            return resolved
         if os.path.exists(font_name):
             return font_name
-        local_path = os.path.join(os.path.dirname(__file__), font_name)
-        if os.path.exists(local_path):
-            return local_path
         if font_name.lower().endswith(('.ttf', '.otf', '.woff', '.woff2')):
             print("Font file %r not found. Falling back to the default font." % font_name)
             return None

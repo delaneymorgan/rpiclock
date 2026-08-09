@@ -180,6 +180,19 @@ See requirements.txt
     pip3 install argparse configparser kivy pyowm python-dateutil rpi_backlight untangle
 
 ---
+### Standalone executable with PyInstaller:
+
+To build a standalone Linux executable, install PyInstaller in the virtual environment and build from the project root:
+
+    source .venv/bin/activate
+    pip install pyinstaller
+    pyinstaller rpiclock.spec
+
+The built app will be available in `dist/rpiclock/rpiclock`.
+
+If you do not have `DSEG7Classic-Bold.ttf` in the project root, either copy it there or update `config.ini` to use a font that is available on your system.
+
+---
 ### Usage:
 The rpi_backlight module requires the program to be run as sudo/root.
 
