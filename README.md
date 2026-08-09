@@ -175,6 +175,12 @@ The rpi_backlight module requires the program to be run as sudo/root.
 
 -v option can be supplied to enable the (rather limited) console logging.
 
+For desktop development and testing on Ubuntu (or any non-Pi environment), run:
+
+    python3 rpiclock.py --console
+
+This uses a simple console renderer instead of Kivy, which makes it easier to exercise the time/date/weather logic without the Raspberry Pi display stack.
+
 Most useful parameters can be set via the config.ini file.
 
 ---

@@ -8,33 +8,108 @@ argvCopy = sys.argv
 sys.argv = sys.argv[:1]
 
 import argparse
+import ast
 import configparser
-from kivy.app import App
-from kivy.uix.button import Button
-from kivy.uix.image import Image as Image
-from kivy.uix.label import Label
-from kivy.uix.widget import Widget
-from kivy.uix.boxlayout import BoxLayout
-from kivy.clock import Clock
-from kivy.core.window import Window
+
+try:
+    from kivy.app import App
+    from kivy.uix.button import Button
+    from kivy.uix.image import Image as Image
+    from kivy.uix.label import Label
+    from kivy.uix.widget import Widget
+    from kivy.uix.boxlayout import BoxLayout
+    from kivy.clock import Clock
+    from kivy.core.window import Window
+    KIVY_AVAILABLE = True
+except ImportError:
+    class _KivyFallbackBase(object):
+        def __init__(self, *args, **kwargs):
+            self.size = kwargs.get("size")
+            self.size_hint = kwargs.get("size_hint")
+            self.text = kwargs.get("text", "")
+            self.source = kwargs.get("source", "")
+            self.color = kwargs.get("color")
+            self.font_name = kwargs.get("font_name")
+            self.font_size = kwargs.get("font_size")
+            self.background_color = kwargs.get("background_color")
+            self.bold = kwargs.get("bold", False)
+
+        def bind(self, *args, **kwargs):
+            return None
+
+        def add_widget(self, *args, **kwargs):
+            return None
+
+        def remove_widget(self, *args, **kwargs):
+            return None
+
+    class App(_KivyFallbackBase):
+        pass
+
+    class Button(_KivyFallbackBase):
+        pass
+
+    class Image(_KivyFallbackBase):
+        pass
+
+    class Label(_KivyFallbackBase):
+        pass
+
+    class Widget(_KivyFallbackBase):
+        pass
+
+    class BoxLayout(_KivyFallbackBase):
+        pass
+
+    class Clock(object):
+        @staticmethod
+        def schedule_interval(*args, **kwargs):
+            return None
+
+    class Window(object):
+        size = (800, 480)
+        borderless = False
+        fullscreen = False
+
+        @staticmethod
+        def bind(*args, **kwargs):
+            return None
+
+    KIVY_AVAILABLE = False
 
 sys.argv = argvCopy
 
 import calendar
 import datetime
-from dateutil import parser as du_parser
+
+try:
+    from dateutil import parser as du_parser
+except ImportError:  # pragma: no cover - optional dependency
+    du_parser = None
 import io
 import json
 import os
 import platform
-import pyowm
+
+try:
+    import pyowm
+except ImportError:  # pragma: no cover - optional dependency
+    pyowm = None
 import re
-import requests
+
+try:
+    import requests
+except ImportError:  # pragma: no cover - optional dependency
+    requests = None
 import signal
 import sys
 import time
 import threading
-import untangle
+
+try:
+    import untangle
+except ImportError:  # pragma: no cover - optional dependency
+    untangle = None
 from ftplib import FTP
 
 # =============================================================================
@@ -83,9 +158,8 @@ def signal_handler(raised_signal, frame):
 
 
 def is_rpi():
-    if platform.machine() == "armv7l":
-        return True
-    return False
+    machine = platform.machine().lower()
+    return machine in ["armv7l", "armv6l", "arm64", "aarch64"] or machine.startswith("arm")
 
 
 # =============================================================================
@@ -121,7 +195,7 @@ class Config:
     config = {}
 
     CONFIG_TYPE_PARSERS = {
-        'list': lambda self, settings, section, member: eval(settings.get(section, member)),
+        'list': lambda self, settings, section, member: self.parse_list(settings.get(section, member)),
         'string': lambda self, settings, section, member: settings.get(section, member),
         'integer': lambda self, settings, section, member: settings.getint(section, member),
         'bool': lambda self, settings, section, member: settings.getboolean(section, member),
@@ -138,6 +212,17 @@ class Config:
         self.config["bom_weather"] = self.load_section(settings, "bom_weather", MEMBERS_BOM_WEATHER)
         self.config["owm_weather"] = self.load_section(settings, "owm_weather", MEMBERS_OWM_WEATHER)
         return
+
+    def parse_list(self, value):
+        try:
+            parsed_value = ast.literal_eval(value)
+        except (SyntaxError, ValueError):
+            raise ValueError("Invalid list value: %s" % value)
+        if isinstance(parsed_value, tuple):
+            parsed_value = list(parsed_value)
+        if not isinstance(parsed_value, list):
+            raise ValueError("Expected a list value: %s" % value)
+        return parsed_value
 
     def parse_config_entry(self, settings, section, member, member_type):
         return self.CONFIG_TYPE_PARSERS[member_type](self, settings, section, member)
@@ -301,6 +386,9 @@ class OWMWeatherMonitor(WeatherMonitor):
 
     def __init__(self, args, my_config):
         super(OWMWeatherMonitor, self).__init__(args, my_config)
+        if pyowm is None:
+            print("OWMWeatherMonitor unavailable: pyowm is not installed")
+            return
         try:
             self.service = pyowm.OWM(my_config.get()["owm_weather"]["api_key"])
             self.do_observation()
@@ -310,6 +398,8 @@ class OWMWeatherMonitor(WeatherMonitor):
 
     def do_observation(self):
         log(self.args, "retrieving observation")
+        if pyowm is None:
+            return
         try:
             mgr = self.service.weather_manager()
             obs = mgr.weather_at_place(self.my_config.get()["owm_weather"]["place"])
@@ -339,28 +429,30 @@ class OWMWeatherMonitor(WeatherMonitor):
             # try:
             mgr = self.service.weather_manager()
             fc_3h = mgr.three_hours_forecast(self.my_config.get()["owm_weather"]["place"]).get_forecast()
-            days = [dict(iconName="", tempMax=None, tempMin=None, timestamp=0, weatherCodes={})] * 8
+            days = [dict(iconName="", tempMax=None, tempMin=None, timestamp=0, weatherCodes={}) for _ in range(8)]
             for fc_slice in fc_3h:
                 time_from = fc_slice.get_reference_time()
                 dt = datetime.datetime.utcfromtimestamp(time_from)
                 dt = dt.replace(hour=12, minute=0, second=0)
                 day_no = int((dt.timestamp() - dt_now.timestamp()) / SECONDS_IN_DAY)
+                if day_no < 0 or day_no >= len(days):
+                    continue
                 this_day = days[day_no]
                 temp = fc_slice.get_temperature(unit="celsius")
                 this_day["timestamp"] = int(dt.timestamp())
                 if "temp_max" in temp:
-                    # if (this_day["tempMax"] is None) or (temp["temp_max"] > this_day["tempMax"]):
-                    #    this_day["tempMax"] = temp["temp_max"]
                     if this_day["tempMax"] is None:
                         this_day["tempMax"] = temp["temp_max"]
                     if temp["temp_max"] > this_day["tempMax"]:
                         this_day["tempMax"] = temp["temp_max"]
                 if ("temp_min" in temp) and ((this_day["tempMin"] is None) or (temp["temp_min"] < this_day["tempMin"])):
                     this_day["tempMin"] = temp["temp_min"]
-                icon_name = fc_slice.get_weather_icon_name()  # build weather code histogram for this day
+                icon_name = fc_slice.get_weather_icon_name()
                 if icon_name not in this_day["weatherCodes"]:
                     this_day["weatherCodes"][icon_name] = 0
                 this_day["weatherCodes"][icon_name] += 1
+            with self._weather_lock:
+                self._weather["forecast"] = [day for day in days if day["timestamp"] != 0]
         #     for day in days:
         #         # TODO: get highest rating icon_name for iconName
         #         pass
@@ -414,12 +506,14 @@ class BOMWeatherMonitor(WeatherMonitor):
 
     def do_observation(self):
         log(self.args, "retrieving observation")
+        if requests is None:
+            return
         url = self.my_config.get()["bom_weather"]["observation_url"]
         place = self.my_config.get()["bom_weather"]["observation_place"]
         observation_url = url % (place, place)
         try:
-            resp = requests.get(observation_url)
-            if resp:
+            resp = requests.get(observation_url, timeout=10)
+            if resp.ok:
                 # observations typically contains many (hundreds, perhaps),
                 # lets just print out the current observation.
                 log(self.args, "Current observation data:")
@@ -482,17 +576,26 @@ class BOMWeatherMonitor(WeatherMonitor):
                     log(self.args, "tempMin: %s" % thisElement.cdata)
                     info["tempMin"] = float(thisElement.cdata)
         if timestamp:
-            d = du_parser.parse(timestamp)
+            if du_parser is not None:
+                d = du_parser.parse(timestamp)
+            else:
+                try:
+                    d = datetime.datetime.fromisoformat(timestamp)
+                except ValueError:
+                    d = datetime.datetime.strptime(timestamp, "%Y-%m-%dT%H:%M:%S")
             this_time = time.mktime(d.timetuple()) + d.microsecond / 1E6
             info["timestamp"] = this_time
         return info
 
     def do_forecast(self):
         log(self.args, "retrieving forecast")
+        if untangle is None:
+            return
         try:
             weather_config = self.my_config.get()["bom_weather"]
-            ftp = FTP(weather_config["ftp_host"])
+            ftp = FTP(weather_config["ftp_host"], timeout=10)
             ftp.login()
+            ftp.set_timeout(10)
             fc_path = weather_config["forecast_path"] % weather_config["forecast_place"]
             out_str = io.StringIO()  # Use a string like a file.
             ftp.retrlines('RETR ' + fc_path, out_str.write)
@@ -836,6 +939,48 @@ class RPiClockWidget(Widget):
 # =============================================================================
 
 
+class ConsoleClock(object):
+    def __init__(self, args, my_config, weather_monitor):
+        self.args = args
+        self.my_config = my_config
+        self.weather_monitor = weather_monitor
+        self.last_display = None
+
+    def format_weather(self):
+        if self.weather_monitor is None:
+            return ""
+        weather = self.weather_monitor.weather()
+        temp_now = weather.get("tempNow")
+        temp_min = weather.get("tempMin")
+        temp_max = weather.get("tempMax")
+        parts = []
+        if temp_now is not None:
+            parts.append("temp=%2.1f%s" % (temp_now, DEGREE_SIGN))
+        if temp_min is not None and temp_max is not None:
+            parts.append("range=%2.1f%s-%2.1f%s" % (temp_min, DEGREE_SIGN, temp_max, DEGREE_SIGN))
+        elif temp_max is not None:
+            parts.append("max=%2.1f%s" % (temp_max, DEGREE_SIGN))
+        elif temp_min is not None:
+            parts.append("min=%2.1f%s" % (temp_min, DEGREE_SIGN))
+        return " | ".join(parts)
+
+    def render(self):
+        time_now = time.localtime(time.time())
+        time_str = time.strftime(self.my_config.get()["formats"]["time"], time_now)
+        date_str = time.strftime(self.my_config.get()["formats"]["date"], time_now)
+        display = "\n".join([time_str, date_str, self.format_weather()])
+        if display != self.last_display:
+            sys.stdout.write("\033[2J\033[H")
+            print(display)
+            sys.stdout.flush()
+            self.last_display = display
+
+    def run(self):
+        while g_running_flag:
+            self.render()
+            time.sleep(1)
+
+
 class RPiClockApp(App):
     def __init__(self, args, my_config):
         super(RPiClockApp, self).__init__()
@@ -876,6 +1021,7 @@ def arg_parser():
     parser = argparse.ArgumentParser(description='rpiclock - time/date/weather display appliance.')
     parser.add_argument("-v", "--verbose", help="verbose mode", action="store_true")
     parser.add_argument("-d", "--diagnostic", help="diagnostic mode (includes verbose)", action="store_true")
+    parser.add_argument("--console", help="run in console mode for desktop testing", action="store_true")
     parser.add_argument("--version", action="version", version='%(prog)s {version}'.format(version=__version__))
     args = parser.parse_args()
     return args
@@ -889,10 +1035,19 @@ def main():
     log(args, "rpiclock start")
     signal.signal(signal.SIGINT, signal_handler)
     config = Config()
-    clock_app = RPiClockApp(args, config)
-    if is_rpi():
-        Window.fullscreen = True
-    clock_app.run()
+    if args.console or not KIVY_AVAILABLE:
+        weather_monitor = None
+        if config.get()["weather"]["api"] == "owm":
+            weather_monitor = OWMWeatherMonitor(args, config)
+        elif config.get()["weather"]["api"] == "bom":
+            weather_monitor = BOMWeatherMonitor(args, config)
+        console_clock = ConsoleClock(args, config, weather_monitor)
+        console_clock.run()
+    else:
+        clock_app = RPiClockApp(args, config)
+        if is_rpi():
+            Window.fullscreen = True
+        clock_app.run()
     log(args, "rpiclock end")
     return
 
