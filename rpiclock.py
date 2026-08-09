@@ -29,6 +29,7 @@ def main():
     log(args, "rpiclock start")
     signal.signal(signal.SIGINT, signal_handler)
     state.running_flag = True
+    state.stop_event.clear()
     config = Config()
     weather_monitor = None
     if config.get()["weather"]["api"] == "owm":

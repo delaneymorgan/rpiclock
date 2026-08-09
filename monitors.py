@@ -7,6 +7,8 @@ import re
 import time
 import threading
 
+import state
+
 try:
     import pyowm
 except ImportError:  # pragma: no cover - optional dependency
@@ -63,10 +65,10 @@ class BrightnessMonitor(threading.Thread):
         self.backlight.brightness = raw_value
 
     def run(self):
-        import state
         while state.running_flag:
             time_now = time.time()
-            current_mod = (time.localtime(time_now).tm_hour * 60) + time.localtime(time_now).tm_min
+            local_time = time.localtime(time_now)
+            current_mod = (local_time.tm_hour * 60) + local_time.tm_min
             if self.low_mod_start <= current_mod < self.high_mod_start:
                 power = self.my_config.get()["brightness"]["low"]
             else:
@@ -74,7 +76,8 @@ class BrightnessMonitor(threading.Thread):
             raw_value = int(power * self.kMaxBrightness)
             if self.backlight is not None:
                 self.set_backlight(raw_value)
-            time.sleep(60)
+            if state.stop_event.wait(60):
+                break
 
 
 class WeatherMonitor(threading.Thread):
@@ -107,18 +110,18 @@ class WeatherMonitor(threading.Thread):
         raise NotImplementedError()
 
     def run(self):
-        import state
         while state.running_flag:
             log(self.args, "%s running" % self.__class__.__name__)
             time_now = time.time()
             wait_remaining = self.my_config.get()["weather"]["check_interval"] - (time_now - self.last_check)
-            if wait_remaining < 0:
+            if wait_remaining <= 0:
                 log(self.args, "polling weather")
                 self.last_check = time_now
                 self.do_observation()
                 self.do_forecast()
             else:
-                time.sleep(1)
+                if state.stop_event.wait(wait_remaining):
+                    break
 
 
 class OWMWeatherMonitor(WeatherMonitor):

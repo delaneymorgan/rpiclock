@@ -69,6 +69,7 @@ class RPiClockApp(App):
     def on_request_close(self, *args):
         _ = args
         state.running_flag = False
+        state.stop_event.set()
         raise SystemExit
 
     def build(self):

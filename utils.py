@@ -11,6 +11,7 @@ def signal_handler(raised_signal, frame):
     if raised_signal == signal.SIGINT:
         import state
         state.running_flag = False
+        state.stop_event.set()
         sys.exit(0)
     return
 
