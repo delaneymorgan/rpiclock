@@ -25,8 +25,14 @@ class TimeWidget(Button):
     def on_request_close(self, *args):
         _ = args
         import state
+        from kivy.app import App
+
         state.running_flag = False
-        raise SystemExit
+        state.stop_event.set()
+        app = App.get_running_app()
+        if app is not None:
+            app.stop()
+        return
 
     def update(self, dt):
         _ = dt

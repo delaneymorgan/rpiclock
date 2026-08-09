@@ -57,20 +57,33 @@ class RPiClockApp(App):
         self.myConfig = my_config
         Window.size = my_config.get()["formats"]["window_size"]
         Window.bind(on_request_close=self.on_request_close)
+        self.weatherMonitor = None
         if my_config.get()["weather"]["api"] == "owm":
             self.weatherMonitor = OWMWeatherMonitor(args, my_config)
+            self.weatherMonitor.daemon = True
             self.weatherMonitor.start()
         elif my_config.get()["weather"]["api"] == "bom":
             self.weatherMonitor = BOMWeatherMonitor(args, my_config)
+            self.weatherMonitor.daemon = True
             self.weatherMonitor.start()
         self.brightnesssMonitor = BrightnessMonitor(args, my_config)
+        self.brightnesssMonitor.daemon = True
         self.brightnesssMonitor.start()
 
     def on_request_close(self, *args):
         _ = args
         state.running_flag = False
         state.stop_event.set()
-        raise SystemExit
+        self.stop()
+        return False
+
+    def on_stop(self):
+        state.running_flag = False
+        state.stop_event.set()
+        if self.weatherMonitor is not None:
+            self.weatherMonitor.join(timeout=2)
+        if self.brightnesssMonitor is not None:
+            self.brightnesssMonitor.join(timeout=2)
 
     def build(self):
         Window.borderless = True
