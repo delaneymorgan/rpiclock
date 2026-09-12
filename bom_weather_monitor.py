@@ -109,6 +109,7 @@ class BOMWeatherMonitor(WeatherMonitor):
                 info["tempMin"] = float(forecast_elements.cdata)
         else:
             for thisElement in forecast_elements:
+                print(f"thisElement: {thisElement["type"]}/{thisElement.cdata}")
                 if thisElement["type"] == "forecast_icon_code":
                     log(self.args, "iconName: %s" % thisElement.cdata)
                     info["iconName"] = str(thisElement.cdata)
@@ -150,7 +151,7 @@ class BOMWeatherMonitor(WeatherMonitor):
             with self._weather_lock:
                 for thisKey in info:
                     self._weather[thisKey] = info[thisKey]
-            periods_forecast = area.forecast_period
+            periods_forecast = area.forecast_period[1:]
             with self._weather_lock:
                 self._weather["forecast"] = []
             for dayForecast in periods_forecast:
